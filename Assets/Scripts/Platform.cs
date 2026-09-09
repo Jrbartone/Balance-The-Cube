@@ -1,0 +1,187 @@
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class Platform : MonoBehaviour
+{
+    private InputAction moveAction;
+    private InputAction clickAction;
+    private Vector2 inputVector;
+    private Rigidbody rb;
+
+    [Header("Angle Limits")]
+    [Tooltip("Maximum front/back tilt in degrees (Y input)")]
+    [SerializeField, Range(0f, 89f)] private float maxPitchAngle = 30f;
+
+    [Tooltip("Maximum side/side tilt in degrees (X input)")]
+    [SerializeField, Range(0f, 89f)] private float maxRollAngle = 30f;
+
+    [Header("Smoothing")]
+    [Tooltip("Interpolation speed for smoothing the tilt")]
+    [SerializeField] private float lerpSpeed = 1f;
+
+    [Header("Kinematic Impact Response")]
+    [Tooltip("Scales the incoming impact force into rotational offset")]
+    [SerializeField] private float impactSensitivity = 0.05f;
+
+    [Tooltip("Scales sustained resting mass into continuous rotational offset")]
+    [SerializeField] private float weightSensitivity = 0.02f;
+
+    [Tooltip("Speed at which the impact rotation springs back to zero")]
+    [SerializeField] private float impactRecoverySpeed = 8f;
+
+    [Header("Vertical Bounce")]
+    [Tooltip("Scales impact forces into vertical Y displacement")]
+    [SerializeField] private float verticalImpactSensitivity = 0.015f;
+
+    [Tooltip("Speed at which the Y position springs back to resting height")]
+    [SerializeField] private float verticalRecoverySpeed = 12f;
+
+    // Stores current rotational impact offset (Euler pitch, yaw, roll)
+    private Vector3 currentImpactOffset;
+    // Sustained offset target calculated per frame from resting objects
+    private Vector3 targetWeightOffset;
+    private Vector3 currentWeightOffset;
+    // Base resting position
+    private Vector3 baseLocalPosition;
+    // Current vertical displacement offset
+    private float currentYOffset;
+
+    // Start is called once before the first execution of Update after the MonoBehaviour is created
+    
+    void Start()
+    {
+        moveAction = InputSystem.actions.FindAction("Move");
+        clickAction = InputSystem.actions.FindAction("Click");
+        rb = GetComponent<Rigidbody>();
+        // Cache initial local position for Y bounce calculations
+        baseLocalPosition = transform.localPosition;
+    }
+
+    void Update()
+    {
+       handleInput();
+    }
+
+    void FixedUpdate(){
+       handlePositionAndRotation();
+       // Reset target weight accumulator for the next frame's OnCollisionStay calls
+        targetWeightOffset = Vector3.zero;
+    }
+
+    void handleInput(){
+        if(isGamepad()){
+            inputVector = moveAction.ReadValue<Vector2>();
+        } else {
+            if(isMouseHoldingDown()){
+                inputVector = (inputVector+moveAction.ReadValue<Vector2>());
+            } else {
+                inputVector = Vector2.zero;
+            }
+        }
+    }
+
+    void handlePositionAndRotation()
+    {
+        // --- 1. Position Bounce Handling ---
+        // Smoothly return vertical Y offset to zero
+        currentYOffset = Mathf.Lerp(currentYOffset, 0f, Time.fixedDeltaTime * verticalRecoverySpeed);
+
+        Vector3 targetLocalPosition = baseLocalPosition + new Vector3(0f, currentYOffset, 0f);
+        Vector3 targetWorldPosition = (transform.parent != null)
+            ? transform.parent.TransformPoint(targetLocalPosition)
+            : targetLocalPosition;
+
+        rb.MovePosition(targetWorldPosition);
+
+        // --- 2. Rotation Tilt Handling ---
+        float clampedY = Mathf.Clamp(inputVector.y, -1f, 1f);
+        float clampedX = Mathf.Clamp(inputVector.x, -1f, 1f);
+
+        float targetPitch = clampedY * maxPitchAngle;
+        float targetRoll = -clampedX * maxRollAngle;
+
+        currentImpactOffset = Vector3.Lerp(currentImpactOffset, Vector3.zero, Time.fixedDeltaTime * impactRecoverySpeed);
+        currentWeightOffset = Vector3.Lerp(currentWeightOffset, targetWeightOffset, Time.fixedDeltaTime * lerpSpeed);
+
+        Quaternion combinedOffset = Quaternion.Euler(currentImpactOffset + currentWeightOffset);
+        Quaternion targetLocalRotation = Quaternion.Euler(targetPitch, 0f, targetRoll) * combinedOffset;
+
+        Quaternion targetWorldRotation = (transform.parent != null) 
+            ? transform.parent.rotation * targetLocalRotation 
+            : targetLocalRotation;
+
+        Quaternion nextRotation = Quaternion.Slerp(
+            rb.rotation,
+            targetWorldRotation,
+            Time.fixedDeltaTime * lerpSpeed
+        );
+
+        rb.MoveRotation(nextRotation);
+    }
+
+    /// <summary>
+    /// Helper function to manually add a vertical Y bounce displacement.
+    /// Negative values sink the platform downward; positive values bounce it upward.
+    /// </summary>
+    public void AddVerticalImpulse(float impulse)
+    {
+        currentYOffset += impulse * verticalImpactSensitivity;
+    }
+
+    public void AddRotationalImpulse(Vector3 torque)
+    {
+        currentImpactOffset += torque * impactSensitivity;
+    }
+
+    public void AddImpactAtPoint(Vector3 point, Vector3 impulseForce)
+    {
+        Vector3 leverArm = point - transform.position;
+        Vector3 worldTorque = Vector3.Cross(leverArm, impulseForce);
+        Vector3 localTorque = transform.InverseTransformDirection(worldTorque);
+
+        AddRotationalImpulse(localTorque);
+
+        // Extract downward component of the impact relative to the platform surface
+        float verticalForce = Vector3.Dot(-impulseForce, transform.up);
+        AddVerticalImpulse(-verticalForce);
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        Rigidbody otherRb = collision.rigidbody;
+        float mass = (otherRb != null) ? otherRb.mass : 1f;
+        Vector3 impulse = collision.relativeVelocity * mass;
+
+        foreach (ContactPoint contact in collision.contacts)
+        {
+            AddImpactAtPoint(contact.point, -impulse / collision.contactCount);
+        }
+    }
+
+    private void OnCollisionStay(Collision collision)
+    {
+        Rigidbody otherRb = collision.rigidbody;
+        float mass = (otherRb != null) ? otherRb.mass : 1f;
+
+        Vector3 gravityForce = Physics.gravity * mass;
+
+        foreach (ContactPoint contact in collision.contacts)
+        {
+            Vector3 leverArm = contact.point - transform.position;
+            Vector3 worldTorque = Vector3.Cross(leverArm, gravityForce);
+            Vector3 localTorque = transform.InverseTransformDirection(worldTorque);
+
+            targetWeightOffset += (localTorque * weightSensitivity) / collision.contactCount;
+        }
+    }
+
+    bool isMouseHoldingDown()
+    {
+        return clickAction.ReadValue<float>() != 0;
+    }
+
+    bool isGamepad()
+    {
+        return moveAction.activeControl != null && moveAction.activeControl.device is Gamepad;
+    }
+}
