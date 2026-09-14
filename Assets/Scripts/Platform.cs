@@ -1,8 +1,11 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-
+using Unity.Cinemachine; // Use Cinemachine if using older package versions (v2)
 public class Platform : MonoBehaviour
 {
+    [Header("Camera Control")]
+    [Tooltip("Reference to the Cinemachine Target Group focusing on this platform")]
+    [SerializeField] private CinemachineTargetGroup targetGroup;
     private InputAction moveActionMouse;
     private InputAction moveActionLeftStick;
     private InputAction moveActionRightStick;
@@ -108,9 +111,10 @@ public class Platform : MonoBehaviour
     void handlePositionAndRotation()
     {
         if((isLeftHandActive && isRightHandActive) || dropped){
-            rb.isKinematic = false;
-            rb.useGravity = true;
-            dropped = true;
+            if (!dropped)
+            {
+                DropPlatform();
+            }
             return;
         }
         // --- 1. Position Bounce Handling ---
@@ -209,5 +213,22 @@ public class Platform : MonoBehaviour
     bool isMouseHoldingDown()
     {
         return clickAction.ReadValue<float>() != 0;
+    }
+
+    private void DropPlatform()
+    {
+        rb.isKinematic = false;
+        rb.useGravity = true;
+        dropped = true;
+
+        RemoveFromTargetGroup();
+    }
+
+    private void RemoveFromTargetGroup()
+    {
+        if (targetGroup != null)
+        {
+            targetGroup.RemoveMember(transform);
+        }
     }
 }

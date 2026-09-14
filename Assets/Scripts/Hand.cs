@@ -103,6 +103,8 @@ public class Hand : MonoBehaviour
 
         bool active = isHandActivated > 0f;
 
+        handObject.GetComponent<Animator>().SetBool("active", active);
+
         if (active)
         {
             isReturningHome = false;
