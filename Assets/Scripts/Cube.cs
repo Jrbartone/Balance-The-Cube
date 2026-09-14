@@ -26,7 +26,7 @@ public class Cube : MonoBehaviour
     }
 
     float minImpactForce = 40f; // Force threshold
-    float debounceCooldown = 0.2f;
+    float debounceCooldown = 0.4f;
     private float nextAllowedImpactTime;
     void playImpactParticles(Collision collision){
         if (Time.time < nextAllowedImpactTime) return;
