@@ -35,6 +35,8 @@ public class Hand : MonoBehaviour
     public float lerpSpeed = 10f;
 
     [Header("Hand Motion Settings")]
+    [SerializeField] private Transform restTarget;
+
     [Tooltip("Speed at which the hand object lerps to target position or back home.")]
     [SerializeField] private float handFollowSpeed = 15f;
     
@@ -103,22 +105,18 @@ public class Hand : MonoBehaviour
 
         bool active = isHandActivated > 0f;
 
-        handObject.GetComponent<Animator>().SetBool("active", active);
+        // Cache animator component to avoid repeated GetComponent calls
+        if (handObject.TryGetComponent<Animator>(out var animator))
+        {
+            animator.SetBool("active", active);
+        }
 
         if (active)
         {
-            isReturningHome = false;
-
-            // Unparent when activated so motion is independent
-            if (handObject.transform.parent != null)
-            {
-                handObject.transform.SetParent(null);
-            }
-
             // Target rotation aligned forward, adjusted for backward -Z mesh orientation
             Quaternion targetWorldRot = transform.rotation * BackwardZOffset;
 
-            // Smoothly move/rotate towards target position/rotation
+            // Smoothly move/rotate towards active target position/rotation
             handObject.transform.position = Vector3.Lerp(
                 handObject.transform.position, 
                 transform.position, 
@@ -133,46 +131,22 @@ public class Hand : MonoBehaviour
         }
         else
         {
-            // Trigger returning state as soon as activation drops
-            if (handObject.transform.parent == null)
-            {
-                isReturningHome = true;
-            }
+            if (restTarget == null) return;
 
-            if (isReturningHome)
-            {
-                // Calculate target world position/rotation using saved local offsets relative to parent
-                Vector3 targetWorldPos = (handObjectParent != null) 
-                    ? handObjectParent.TransformPoint(handObjectStartingLocalPosition) 
-                    : handObjectStartingLocalPosition;
+            var trueHandFollowSpeed = Vector3.Distance(handObject.transform.position, restTarget.position) < .2f ? 200f : handFollowSpeed;
 
-                Quaternion targetWorldRot = (handObjectParent != null) 
-                    ? handObjectParent.rotation * handObjectStartingLocalRotation 
-                    : handObjectStartingLocalRotation;
-
-                // Move smoothly back toward origin
-                handObject.transform.position = Vector3.Lerp(
-                    handObject.transform.position, 
-                    targetWorldPos, 
-                    Time.deltaTime * handFollowSpeed
-                );
-                
-                handObject.transform.rotation = Quaternion.Slerp(
-                    handObject.transform.rotation, 
-                    targetWorldRot, 
-                    Time.deltaTime * handFollowSpeed
-                );
-
-                // Snap and re-parent once close enough
-                float distanceRemaining = Vector3.Distance(handObject.transform.position, targetWorldPos);
-                if (distanceRemaining < returnThreshold)
-                {
-                    handObject.transform.SetParent(handObjectParent);
-                    handObject.transform.localPosition = handObjectStartingLocalPosition;
-                    handObject.transform.localRotation = handObjectStartingLocalRotation;
-                    isReturningHome = false;
-                }
-            }
+            // Smoothly move/rotate towards the rest target position/rotation
+            handObject.transform.position = Vector3.Lerp(
+                handObject.transform.position, 
+                restTarget.position, 
+                Time.deltaTime * trueHandFollowSpeed
+            );
+            
+            handObject.transform.rotation = Quaternion.Slerp(
+                handObject.transform.rotation, 
+                restTarget.rotation, 
+                Time.deltaTime * trueHandFollowSpeed
+            );
         }
     }
 
