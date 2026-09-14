@@ -3,10 +3,15 @@ using UnityEngine.InputSystem;
 
 public class Platform : MonoBehaviour
 {
-    private InputAction moveAction;
+    private InputAction moveActionMouse;
+    private InputAction moveActionLeftStick;
+    private InputAction moveActionRightStick;
     private InputAction clickAction;
+    private InputAction activateRightHand;
+    private InputAction activateLeftHand;
     private Vector2 inputVector;
     private Rigidbody rb;
+    bool dropped = false;
 
     [Header("Angle Limits")]
     [Tooltip("Maximum front/back tilt in degrees (Y input)")]
@@ -46,12 +51,18 @@ public class Platform : MonoBehaviour
     // Current vertical displacement offset
     private float currentYOffset;
 
+    private bool isRightHandActive = false;
+    private bool isLeftHandActive = false;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     
     void Start()
     {
-        moveAction = InputSystem.actions.FindAction("Move");
+        moveActionMouse = InputSystem.actions.FindAction("MoveMouse");
+        moveActionLeftStick = InputSystem.actions.FindAction("MoveLeftStick");
+        moveActionRightStick = InputSystem.actions.FindAction("MoveRightStick");
         clickAction = InputSystem.actions.FindAction("Click");
+        activateLeftHand = InputSystem.actions.FindAction("ActivateLeftHand"); 
+        activateRightHand = InputSystem.actions.FindAction("ActivateRightHand");
         rb = GetComponent<Rigidbody>();
         // Cache initial local position for Y bounce calculations
         baseLocalPosition = transform.localPosition;
@@ -59,7 +70,7 @@ public class Platform : MonoBehaviour
 
     void Update()
     {
-       handleInput();
+        handleInput();
     }
 
     void FixedUpdate(){
@@ -69,11 +80,25 @@ public class Platform : MonoBehaviour
     }
 
     void handleInput(){
-        if(isGamepad()){
-            inputVector = moveAction.ReadValue<Vector2>();
+        isLeftHandActive = activateLeftHand.ReadValue<float>() != 0;
+        isRightHandActive = activateRightHand.ReadValue<float>() != 0;
+        if((isLeftHandActive && isRightHandActive) || dropped){
+            inputVector = Vector2.zero;
+            return;
+        }
+        if(DeviceDetector.Instance.IsGamepad){
+            if(isLeftHandActive){
+                inputVector = moveActionRightStick.ReadValue<Vector2>();
+            } else if(isRightHandActive){
+                inputVector = moveActionLeftStick.ReadValue<Vector2>();
+            } else {
+                Vector2 leftInput = moveActionLeftStick.ReadValue<Vector2>();
+                Vector2 rightInput = moveActionRightStick.ReadValue<Vector2>();
+                inputVector = (leftInput.sqrMagnitude > rightInput.sqrMagnitude) ? leftInput : rightInput;
+            }
         } else {
             if(isMouseHoldingDown()){
-                inputVector = (inputVector+moveAction.ReadValue<Vector2>());
+                inputVector = (inputVector+moveActionMouse.ReadValue<Vector2>());
             } else {
                 inputVector = Vector2.zero;
             }
@@ -82,6 +107,12 @@ public class Platform : MonoBehaviour
 
     void handlePositionAndRotation()
     {
+        if((isLeftHandActive && isRightHandActive) || dropped){
+            rb.isKinematic = false;
+            rb.useGravity = true;
+            dropped = true;
+            return;
+        }
         // --- 1. Position Bounce Handling ---
         // Smoothly return vertical Y offset to zero
         currentYOffset = Mathf.Lerp(currentYOffset, 0f, Time.fixedDeltaTime * verticalRecoverySpeed);
@@ -178,10 +209,5 @@ public class Platform : MonoBehaviour
     bool isMouseHoldingDown()
     {
         return clickAction.ReadValue<float>() != 0;
-    }
-
-    bool isGamepad()
-    {
-        return moveAction.activeControl != null && moveAction.activeControl.device is Gamepad;
     }
 }

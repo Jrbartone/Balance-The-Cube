@@ -9,6 +9,10 @@ public class Hand : MonoBehaviour
     }
 
     public Directionality directionality = Directionality.LEFT;
+    public GameObject handObject;
+    private Transform handObjectParent;
+    private Vector3 handObjectStartingLocalPosition;
+    private Quaternion handObjectStartingLocalRotation;
     private InputAction activateHandAction;
     private InputAction moveHandAction;
     private float isHandActivated;
@@ -16,7 +20,7 @@ public class Hand : MonoBehaviour
     private float _currentInput;
 
     // Eventually read this value from settings.
-    [SerializeField] private float keyboardInputSpeed = 3f;
+    [SerializeField] private float keyboardInputSpeed = 5f;
     [SerializeField] private float decelerationSpeed = 10f;
 
     [Header("Arc Settings")]
@@ -30,8 +34,25 @@ public class Hand : MonoBehaviour
     [Tooltip("Speed to lerp towards the target analog position. Set to 0 for instant response.")]
     public float lerpSpeed = 10f;
 
+    [Header("Hand Motion Settings")]
+    [Tooltip("Speed at which the hand object lerps to target position or back home.")]
+    [SerializeField] private float handFollowSpeed = 15f;
+    
+    [Tooltip("Distance threshold to consider the hand returned back to its local origin.")]
+    [SerializeField] private float returnThreshold = 0.001f;
+
+    private bool isReturningHome = false;
+    // Rotation offset to flip backward-facing mesh (-Z) forward (+Z)
+    private static readonly Quaternion BackwardZOffset = Quaternion.Euler(0f, 180f, 0f);
+
     void Start()
     {
+        if (handObject != null)
+        {
+            handObjectParent = handObject.transform.parent;
+            handObjectStartingLocalPosition = handObject.transform.localPosition;
+            handObjectStartingLocalRotation = handObject.transform.localRotation;
+        }
         activateHandAction = directionality == Directionality.LEFT 
             ? InputSystem.actions.FindAction("ActivateLeftHand") 
             : InputSystem.actions.FindAction("ActivateRightHand");
@@ -44,6 +65,7 @@ public class Hand : MonoBehaviour
     void Update()
     {
         handleInput();
+        handleHandMotion();
     }
 
     void handleInput(){
@@ -73,6 +95,83 @@ public class Hand : MonoBehaviour
         }
 
         UpdateArcPositionAndRotation(_currentInput);
+    }
+
+    void handleHandMotion()
+    {
+        if (handObject == null) return;
+
+        bool active = isHandActivated > 0f;
+
+        if (active)
+        {
+            isReturningHome = false;
+
+            // Unparent when activated so motion is independent
+            if (handObject.transform.parent != null)
+            {
+                handObject.transform.SetParent(null);
+            }
+
+            // Target rotation aligned forward, adjusted for backward -Z mesh orientation
+            Quaternion targetWorldRot = transform.rotation * BackwardZOffset;
+
+            // Smoothly move/rotate towards target position/rotation
+            handObject.transform.position = Vector3.Lerp(
+                handObject.transform.position, 
+                transform.position, 
+                Time.deltaTime * handFollowSpeed
+            );
+            
+            handObject.transform.rotation = Quaternion.Slerp(
+                handObject.transform.rotation, 
+                targetWorldRot, 
+                Time.deltaTime * handFollowSpeed
+            );
+        }
+        else
+        {
+            // Trigger returning state as soon as activation drops
+            if (handObject.transform.parent == null)
+            {
+                isReturningHome = true;
+            }
+
+            if (isReturningHome)
+            {
+                // Calculate target world position/rotation using saved local offsets relative to parent
+                Vector3 targetWorldPos = (handObjectParent != null) 
+                    ? handObjectParent.TransformPoint(handObjectStartingLocalPosition) 
+                    : handObjectStartingLocalPosition;
+
+                Quaternion targetWorldRot = (handObjectParent != null) 
+                    ? handObjectParent.rotation * handObjectStartingLocalRotation 
+                    : handObjectStartingLocalRotation;
+
+                // Move smoothly back toward origin
+                handObject.transform.position = Vector3.Lerp(
+                    handObject.transform.position, 
+                    targetWorldPos, 
+                    Time.deltaTime * handFollowSpeed
+                );
+                
+                handObject.transform.rotation = Quaternion.Slerp(
+                    handObject.transform.rotation, 
+                    targetWorldRot, 
+                    Time.deltaTime * handFollowSpeed
+                );
+
+                // Snap and re-parent once close enough
+                float distanceRemaining = Vector3.Distance(handObject.transform.position, targetWorldPos);
+                if (distanceRemaining < returnThreshold)
+                {
+                    handObject.transform.SetParent(handObjectParent);
+                    handObject.transform.localPosition = handObjectStartingLocalPosition;
+                    handObject.transform.localRotation = handObjectStartingLocalRotation;
+                    isReturningHome = false;
+                }
+            }
+        }
     }
 
     bool isGamepad()
