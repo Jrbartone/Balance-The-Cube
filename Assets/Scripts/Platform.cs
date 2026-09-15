@@ -220,6 +220,7 @@ public class Platform : MonoBehaviour
         rb.isKinematic = false;
         rb.useGravity = true;
         dropped = true;
+         transform.DetachChildren();
 
         RemoveFromTargetGroup();
     }

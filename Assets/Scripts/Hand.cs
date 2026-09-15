@@ -47,6 +47,8 @@ public class Hand : MonoBehaviour
     // Rotation offset to flip backward-facing mesh (-Z) forward (+Z)
     private static readonly Quaternion BackwardZOffset = Quaternion.Euler(0f, 180f, 0f);
 
+    public float zOffset = 0;
+
     void Start()
     {
         if (handObject != null)
@@ -119,7 +121,7 @@ public class Hand : MonoBehaviour
             // Smoothly move/rotate towards active target position/rotation
             handObject.transform.position = Vector3.Lerp(
                 handObject.transform.position, 
-                transform.position, 
+                transform.position + (handObject.transform.forward * zOffset), 
                 Time.deltaTime * handFollowSpeed
             );
             
