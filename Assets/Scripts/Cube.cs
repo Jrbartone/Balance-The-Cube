@@ -5,6 +5,11 @@ public class Cube : MonoBehaviour
 {
     public GameObject renderedCube;
     public ParticleSystem impactParticles;
+
+    [Header("Audio Configurations")]
+    [SerializeField] private AudioCueSO defaultBonkSound;
+    [SerializeField] private AudioCueSO defaultBinkSound;
+    [SerializeField] private AudioCueSO defaultSlideSound;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -36,7 +41,11 @@ public class Cube : MonoBehaviour
         float impactForce = collision.impulse.magnitude / Time.fixedDeltaTime;
 
         // Only proceed if force exceeds threshold
-        if (impactForce < minImpactForce) return;
+        if (impactForce < minImpactForce) {
+            AudioManager.Instance.Play3DSFX(defaultBonkSound, transform.position);
+            return;
+        }
+        AudioManager.Instance.Play3DSFX(defaultBinkSound, transform.position);
 
         // 1. Get the primary contact point and normal
         ContactPoint contact = collision.contacts[0];
