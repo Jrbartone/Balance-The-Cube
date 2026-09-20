@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e181f742a6070943b365c0fa0386cd7, type: 3}
+  m_Name: Ice
+  m_EditorClassIdentifier: Assembly-CSharp::CubeEffectModifier
+  weight: 0
+  staticFriction: 0
+  dynamicFriction: -7
+  bounciness: 0
+  size: 0
+  multi: 0
+  visualEffectPrefab: {fileID: 6877543370117117548, guid: 39c7bd0854fd09b4f89b199c9755e4e7, type: 3}

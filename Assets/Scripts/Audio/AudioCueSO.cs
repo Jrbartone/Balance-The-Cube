@@ -31,9 +31,13 @@ public class AudioCueSO : ScriptableObject
     /// <summary>
     /// Calculates a pitch centered on basePitch shifted by the random variation range.
     /// </summary>
-    public float GetRandomPitch()
+    public float GetRandomPitch(float pitchScale = 1f)
     {
-        if (pitchRandomRange <= 0f) return basePitch;
-        return basePitch + Random.Range(-pitchRandomRange, pitchRandomRange);
+        float calculatedPitch = basePitch;
+        if (pitchRandomRange > 0f)
+        {
+            calculatedPitch += Random.Range(-pitchRandomRange, pitchRandomRange);
+        }
+        return calculatedPitch * pitchScale;
     }
 }

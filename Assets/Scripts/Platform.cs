@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Unity.Cinemachine; // Use Cinemachine if using older package versions (v2)
+using DG.Tweening;
+
 public class Platform : MonoBehaviour
 {
     [Header("Camera Control")]
@@ -15,6 +17,7 @@ public class Platform : MonoBehaviour
     private Vector2 inputVector;
     private Rigidbody rb;
     bool dropped = false;
+    public GameObject visiblePlatform;
 
     [Header("Angle Limits")]
     [Tooltip("Maximum front/back tilt in degrees (Y input)")]
@@ -154,31 +157,32 @@ public class Platform : MonoBehaviour
         rb.MoveRotation(nextRotation);
     }
 
-    /// <summary>
-    /// Helper function to manually add a vertical Y bounce displacement.
-    /// Negative values sink the platform downward; positive values bounce it upward.
-    /// </summary>
-    public void AddVerticalImpulse(float impulse)
-    {
-        currentYOffset += impulse * verticalImpactSensitivity;
-    }
-
-    public void AddRotationalImpulse(Vector3 torque)
-    {
-        currentImpactOffset += torque * impactSensitivity;
-    }
-
     public void AddImpactAtPoint(Vector3 point, Vector3 impulseForce)
     {
         Vector3 leverArm = point - transform.position;
         Vector3 worldTorque = Vector3.Cross(leverArm, impulseForce);
         Vector3 localTorque = transform.InverseTransformDirection(worldTorque);
 
-        AddRotationalImpulse(localTorque);
-
         // Extract downward component of the impact relative to the platform surface
         float verticalForce = Vector3.Dot(-impulseForce, transform.up);
-        AddVerticalImpulse(-verticalForce);
+
+        if (visiblePlatform != null)
+        {
+            Transform targetTransform = visiblePlatform.transform;
+
+            // Complete and clear active tweens so local position/rotation reset to baseline before starting new punch
+            targetTransform.DOComplete();
+
+            // Calculate punch vectors in local coordinate space
+            Vector3 localPositionPunch = new Vector3(0f, -Mathf.Abs(verticalForce) * verticalImpactSensitivity, 0f);
+            Vector3 localRotationPunch = localTorque * impactSensitivity * 10f;
+
+            // DOPunchPosition with optional bool isLocal = true
+            targetTransform.DOPunchPosition(localPositionPunch, duration: 0.3f, vibrato: 8, elasticity: 0.5f, snapping: false);
+
+            // DOPunchRotation applies directly as local Euler angles relative to local rotation
+            targetTransform.DOPunchRotation(localRotationPunch, duration: 0.3f, vibrato: 8, elasticity: 0.5f);
+        }
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -189,7 +193,7 @@ public class Platform : MonoBehaviour
 
         foreach (ContactPoint contact in collision.contacts)
         {
-            AddImpactAtPoint(contact.point, -impulse / collision.contactCount);
+           AddImpactAtPoint(contact.point, -impulse / collision.contactCount);
         }
     }
 
