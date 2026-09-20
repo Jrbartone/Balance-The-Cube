@@ -18,6 +18,8 @@ public class Platform : MonoBehaviour
     private Rigidbody rb;
     bool dropped = false;
     public GameObject visiblePlatform;
+    public GameObject[] handPositionMarkers;
+    public GameObject handThree;
 
     [Header("Angle Limits")]
     [Tooltip("Maximum front/back tilt in degrees (Y input)")]
@@ -113,12 +115,14 @@ public class Platform : MonoBehaviour
 
     void handlePositionAndRotation()
     {
-        if((isLeftHandActive && isRightHandActive) || dropped){
-            if (!dropped)
-            {
-                DropPlatform();
+        if(!handThree.activeSelf) {
+            if((isLeftHandActive && isRightHandActive) || dropped){
+                if (!dropped)
+                {
+                    DropPlatform();
+                }
+                return;
             }
-            return;
         }
         // --- 1. Position Bounce Handling ---
         // Smoothly return vertical Y offset to zero
@@ -188,7 +192,7 @@ public class Platform : MonoBehaviour
     private void OnCollisionEnter(Collision collision)
     {
         Rigidbody otherRb = collision.rigidbody;
-        float mass = (otherRb != null) ? otherRb.mass : 1f;
+        float mass = (otherRb != null && otherRb.mass < 2f) ? otherRb.mass : 2f;
         Vector3 impulse = collision.relativeVelocity * mass;
 
         foreach (ContactPoint contact in collision.contacts)
@@ -224,8 +228,9 @@ public class Platform : MonoBehaviour
         rb.isKinematic = false;
         rb.useGravity = true;
         dropped = true;
-         transform.DetachChildren();
-
+        foreach(GameObject g in handPositionMarkers){
+            g.transform.parent = null;
+        }
         RemoveFromTargetGroup();
     }
 

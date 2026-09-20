@@ -15,7 +15,7 @@ MonoBehaviour:
   weight: 0
   staticFriction: 0
   dynamicFriction: 0
-  bounciness: 4
+  bounciness: 7
   size: 0
   multi: 0
   visualEffectPrefab: {fileID: 4130882034144767873, guid: 6dc4b246d95972b459b3c84f2c926331, type: 3}
