@@ -12,9 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 42493f0bc749b33448059fa202cf8269, type: 3}
   m_Name: DefaultSlide
   m_EditorClassIdentifier: Assembly-CSharp::AudioCueSO
-  mixerGroup: {fileID: 0}
-  clips: []
+  mixerGroup: {fileID: 7464899381754628923, guid: 10153506a5c5100498211cb64e4b18c7, type: 2}
+  clips:
+  - {fileID: 8300000, guid: 53ca4d6fe26864149af83c89d9c08e35, type: 3}
   volume: 1
-  loop: 0
+  loop: 1
   basePitch: 1
   pitchRandomRange: 0
