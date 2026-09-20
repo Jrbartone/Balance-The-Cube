@@ -19,12 +19,16 @@ public class Cube : MonoBehaviour
     private Rigidbody rb;
     float maxSlideVelocity = 5f;
     float minSlideVelocity = .005f;
-    float minAngularVelocityForSlide = 2f;
     int collidedObjects = 0;
     TrackedAudioInstance slideAudioInstance;
 
     private float targetSlideVolume = 0f;
     private float currentSlideVolume = 0f;
+
+    [Header("Impact FX tuning")]
+    [SerializeField] private float minImpactForce = 20f; // Force threshold
+    float debounceCooldown = 0.4f;
+    private float nextAllowedImpactTime;
 
     void Start()
     {
@@ -46,16 +50,11 @@ public class Cube : MonoBehaviour
     void OnCollisionEnter(Collision collision)
     {
         collidedObjects++;
-        renderedCube.transform.DOKill(true);
-        renderedCube.transform.localScale = Vector3.one;
-        renderedCube.transform.DOPunchScale(
-            /*Strength */ (Vector3.one + Random.insideUnitSphere * 0.3f) 
-                * Mathf.Clamp(collision.relativeVelocity.magnitude * 0.05f, 0.05f, 0.3f),
-            /*Duration */ 0.35f,
-            /*Vibrato */ 10,
-            /*Elasticity */ 1f).OnComplete(() => transform.localScale = Vector3.one);
-
-        playImpactParticles(collision);
+        // Only proceed if force exceeds threshold
+        if (collision.impulse.magnitude / Time.fixedDeltaTime > minImpactForce) 
+        {
+            onImpact(collision);
+        }
     }
 
     void OnCollisionStay(Collision collision)
@@ -64,7 +63,7 @@ public class Cube : MonoBehaviour
             collidedObjects = 1;
         }
         // Determine intended target volume based on velocity and state
-        if (rb.linearVelocity.magnitude <= minSlideVelocity || rb.angularVelocity.magnitude >= minAngularVelocityForSlide)
+        if (rb.linearVelocity.magnitude <= minSlideVelocity)
         {
             targetSlideVolume = 0f;
         }
@@ -83,36 +82,78 @@ public class Cube : MonoBehaviour
         }
     }
 
-    float minImpactForce = 40f; // Force threshold
-    float debounceCooldown = 0.4f;
-    private float nextAllowedImpactTime;
-
-    void playImpactParticles(Collision collision)
+    void onImpact(Collision collision)
     {
-        if (Time.time < nextAllowedImpactTime) return;
-        if (impactParticles == null || collision.contacts.Length == 0) return;
+        if (Time.time < nextAllowedImpactTime) return;    
+        // Update debounce timestamp
+        nextAllowedImpactTime = Time.time + debounceCooldown;
+        playImpactParticles(collision);
+        playImpactSounds(collision);
+        playImpactTween(collision);
+    }
 
-        // Calculate impact force magnitude from impulse (scaled by fixed DeltaTime)
+    void playImpactTween(Collision collision){
+
         float impactForce = collision.impulse.magnitude / Time.fixedDeltaTime;
 
         // Only proceed if force exceeds threshold
-        if (impactForce < minImpactForce) 
+        if (impactForce < minImpactForceForBink) 
         {
-            AudioManager.Instance.Play3DSFX(defaultBonkSound, transform.position);
-            return;
+            renderedCube.transform.DOKill(true);
+            renderedCube.transform.localScale = Vector3.one;
+            renderedCube.transform.DOPunchScale(
+            /*Strength */ (Vector3.one + Random.insideUnitSphere * 0.1f) 
+                * Mathf.Clamp(collision.relativeVelocity.magnitude * 0.05f, 0.05f, 0.3f),
+            /*Duration */ 0.35f,
+            /*Vibrato */ 10,
+            /*Elasticity */ 1f).OnComplete(() => transform.localScale = Vector3.one);
+           return;
         }
-        AudioManager.Instance.Play3DSFX(defaultBinkSound, transform.position);
+
+        renderedCube.transform.DOKill(true);
+        renderedCube.transform.localScale = Vector3.one;
+        renderedCube.transform.DOPunchScale(
+            /*Strength */ (Vector3.one + Random.insideUnitSphere * 0.3f) 
+                * Mathf.Clamp(collision.relativeVelocity.magnitude * 0.05f, 0.05f, 0.3f),
+            /*Duration */ 0.35f,
+            /*Vibrato */ 10,
+            /*Elasticity */ 1f).OnComplete(() => transform.localScale = Vector3.one);
+
+    }
+
+    void playImpactParticles(Collision collision){
+        if (impactParticles == null || collision.contacts.Length == 0) return;
+
+        float impactForce = collision.impulse.magnitude / Time.fixedDeltaTime;
+
+        // Only proceed if force exceeds threshold
+        if (impactForce < minImpactForceForBink) 
+        {
+           return;
+        }
 
         // Get the primary contact point and normal
         ContactPoint contact = collision.contacts[0];
         
-        // Update debounce timestamp
-        nextAllowedImpactTime = Time.time + debounceCooldown;
-
         // Position the particle system at the point of impact
         impactParticles.transform.position = contact.point;
 
         // Emit the particles
         impactParticles.Play();
+
+    }
+
+    float minImpactForceForBink = 175f; // Force threshold
+    void playImpactSounds(Collision collision){
+          // Calculate impact force magnitude from impulse (scaled by fixed DeltaTime)
+        float impactForce = collision.impulse.magnitude / Time.fixedDeltaTime;
+
+        // Only proceed if force exceeds threshold
+        if (impactForce > minImpactForceForBink) 
+        {
+            AudioManager.Instance.Play3DSFX(defaultBinkSound, transform.position);
+        } else {
+            AudioManager.Instance.Play3DSFX(defaultBonkSound, transform.position);
+        }
     }
 }
