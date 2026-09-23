@@ -10,6 +10,8 @@ public abstract class CubeModifier : ScriptableObject
     [Range(-7, 7)] public int size = 0;
     [Range(-7, 7)] public int multi = 0;
 
+    public bool disableRenderMask = false;
+
     private void OnValidate()
     {
         weight = Mathf.Clamp(weight, -7, 7);

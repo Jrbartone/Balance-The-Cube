@@ -14,7 +14,7 @@ public class JellyRigSimulator : MonoBehaviour
     public Transform[] outerCornerPoints = new Transform[8];
 
     [Header("Physics Surface Material")]
-    [Tooltip("Optional Physics Material (Friction/Bounciness) applied to all jelly colliders.")]
+    [Tooltip("Optional Physics Material (Friction/Bounciness) applied to all jelly colliders. If left unassigned, it will automatically adopt the Physics Material of transform.parent.parent.")]
     public PhysicsMaterial jellyPhysicsMaterial;
 
     [Header("Rotation & Orientation Following")]
@@ -34,7 +34,7 @@ public class JellyRigSimulator : MonoBehaviour
     public float outerColliderRadius = 0.2f;
     public float drag = 0.5f;
 
-    [Header("Spring Settings")]
+    [Header("Spring Settings - Linear")]
     [Tooltip("Spring force pulling inner corners toward the central core.")]
     public float centerToInnerSpringForce = 200f;
 
@@ -47,29 +47,59 @@ public class JellyRigSimulator : MonoBehaviour
     [Tooltip("Spring force connecting the inner cube shell to the outer cube shell.")]
     public float innerToOuterSpringForce = 120f;
 
-    [Tooltip("Damping across all inter-node springs to absorb kinetic energy.")]
+    [Tooltip("Damping across all inter-node linear springs to absorb kinetic energy.")]
     public float springDamper = 10f;
+
+    [Header("Spring Settings - Rotation Constraints")]
+    [Tooltip("Rotational spring stiffness constraining nodes from twisting uncontrollably.")]
+    public float angularSpringForce = 100f;
+
+    [Tooltip("Rotational spring damping to absorb angular momentum and spinning.")]
+    public float angularSpringDamper = 5f;
 
     private Rigidbody[] innerRbs = new Rigidbody[8];
     private Rigidbody[] outerRbs = new Rigidbody[8];
 
-    // Local offset vectors relative to the centerPoint's initial rotation
+    // Local offset vectors and orientations relative to the centerPoint
     private Vector3[] innerLocalOffsets = new Vector3[8];
     private Vector3[] outerLocalOffsets = new Vector3[8];
+    private Quaternion[] innerLocalRotations = new Quaternion[8];
+    private Quaternion[] outerLocalRotations = new Quaternion[8];
 
     void Start()
     {
+        // 0. Ensure target parent exists and retrieve its PhysicsMaterial if needed
+        Transform grandParent = transform.parent != null ? transform.parent.parent : null;
+
+        if (centerPoint == null) 
+        {
+            centerPoint = grandParent;
+        }
+
+        // Fetch the physics material from transform.parent.parent if none is assigned in the Inspector
+        if (jellyPhysicsMaterial == null && grandParent != null)
+        {
+            Collider grandParentCollider = grandParent.GetComponent<Collider>();
+            if (grandParentCollider != null && grandParentCollider.sharedMaterial != null)
+            {
+                jellyPhysicsMaterial = grandParentCollider.sharedMaterial;
+            }
+        }
+
         if (centerPoint == null || innerCornerPoints.Length != 8 || outerCornerPoints.Length != 8)
         {
             Debug.LogError("NestedJellyRigSimulator requires 1 center transform, 8 inner corner transforms, and 8 outer corner transforms.");
             return;
         }
 
-        // Cache local offsets relative to the center point
+        // Cache local offsets and initial orientations relative to center point
         for (int i = 0; i < 8; i++)
         {
             innerLocalOffsets[i] = centerPoint.InverseTransformPoint(innerCornerPoints[i].position);
             outerLocalOffsets[i] = centerPoint.InverseTransformPoint(outerCornerPoints[i].position);
+
+            innerLocalRotations[i] = Quaternion.Inverse(centerPoint.rotation) * innerCornerPoints[i].rotation;
+            outerLocalRotations[i] = Quaternion.Inverse(centerPoint.rotation) * outerCornerPoints[i].rotation;
         }
 
         List<Collider> jellyColliders = new List<Collider>();
@@ -80,8 +110,8 @@ public class JellyRigSimulator : MonoBehaviour
         // 2. Setup Inner Corner Nodes & Connect to Center
         for (int i = 0; i < 8; i++)
         {
-            innerRbs[i] = SetupNode(innerCornerPoints[i], innerColliderRadius, jellyColliders);
-            AddSpring(innerRbs[i], centerRb, centerToInnerSpringForce);
+            innerRbs[i] = SetupNode(innerCornerPoints[i], innerColliderRadius, jellyColliders, false);
+            AddSpringJoint(innerRbs[i], centerRb, centerToInnerSpringForce, angularSpringForce);
         }
 
         // 3. Setup Outer Corner Nodes
@@ -95,7 +125,7 @@ public class JellyRigSimulator : MonoBehaviour
         {
             for (int j = i + 1; j < innerRbs.Length; j++)
             {
-                AddSpring(innerRbs[i], innerRbs[j], innerStructuralSpringForce);
+                AddSpringJoint(innerRbs[i], innerRbs[j], innerStructuralSpringForce, angularSpringForce);
             }
         }
 
@@ -104,20 +134,20 @@ public class JellyRigSimulator : MonoBehaviour
         {
             for (int j = i + 1; j < outerRbs.Length; j++)
             {
-                AddSpring(outerRbs[i], outerRbs[j], outerStructuralSpringForce);
+                AddSpringJoint(outerRbs[i], outerRbs[j], outerStructuralSpringForce, angularSpringForce);
             }
         }
 
         // 6. Cross-Bracing Springs: Inner to Outer
         for (int i = 0; i < innerRbs.Length; i++)
         {
-            for (int j = 0; j < outerRbs.Length; j++)
+            for (int j = i + 1; j < outerRbs.Length; j++)
             {
-                AddSpring(innerRbs[i], outerRbs[j], innerToOuterSpringForce);
+                AddSpringJoint(innerRbs[i], outerRbs[j], innerToOuterSpringForce, angularSpringForce);
             }
         }
 
-        // 7. Disable internal collisions across ALL 17 jelly nodes
+        // 7. Disable internal collisions across ALL jelly nodes
         for (int i = 0; i < jellyColliders.Count; i++)
         {
             for (int j = i + 1; j < jellyColliders.Count; j++)
@@ -134,7 +164,7 @@ public class JellyRigSimulator : MonoBehaviour
     }
 
     /// <summary>
-    /// Applies directional spring forces so corners follow the center point when it rotates.
+    /// Applies directional spring forces and rotational restoring torques to keep corners aligned.
     /// </summary>
     private void ApplyRotationFollowForces()
     {
@@ -142,18 +172,24 @@ public class JellyRigSimulator : MonoBehaviour
 
         for (int i = 0; i < 8; i++)
         {
-            // Inner Corner Rotation Restoring Force
+            // Inner Corner Position & Rotation Restoring Springs
             if (innerRbs[i] != null)
             {
                 Vector3 targetWorldPos = centerPoint.TransformPoint(innerLocalOffsets[i]);
+                Quaternion targetWorldRot = centerPoint.rotation * innerLocalRotations[i];
+
                 ApplyRestoringForce(innerRbs[i], targetWorldPos);
+                ApplyRestoringTorque(innerRbs[i], targetWorldRot);
             }
 
-            // Outer Corner Rotation Restoring Force
+            // Outer Corner Position & Rotation Restoring Springs
             if (outerRbs[i] != null)
             {
                 Vector3 targetWorldPos = centerPoint.TransformPoint(outerLocalOffsets[i]);
+                Quaternion targetWorldRot = centerPoint.rotation * outerLocalRotations[i];
+
                 ApplyRestoringForce(outerRbs[i], targetWorldPos);
+                ApplyRestoringTorque(outerRbs[i], targetWorldRot);
             }
         }
     }
@@ -163,6 +199,26 @@ public class JellyRigSimulator : MonoBehaviour
         Vector3 error = targetWorldPos - rb.position;
         Vector3 force = error * rotationFollowForce - rb.linearVelocity * rotationFollowDamping;
         rb.AddForce(force, ForceMode.Force);
+    }
+
+    /// <summary>
+    /// Torque-based angular spring constraint driving the node to its local target orientation.
+    /// </summary>
+    private void ApplyRestoringTorque(Rigidbody rb, Quaternion targetWorldRot)
+    {
+        Quaternion rotationError = targetWorldRot * Quaternion.Inverse(rb.rotation);
+
+        rotationError.ToAngleAxis(out float angleInDegrees, out Vector3 rotationAxis);
+
+        if (angleInDegrees > 180f) angleInDegrees -= 360f;
+
+        if (Mathf.Abs(angleInDegrees) > 0.01f)
+        {
+            Vector3 angularTorque = rotationAxis.normalized * (angleInDegrees * Mathf.Deg2Rad * angularSpringForce);
+            Vector3 dampingTorque = rb.angularVelocity * angularSpringDamper;
+
+            rb.AddTorque(angularTorque - dampingTorque, ForceMode.Force);
+        }
     }
 
     /// <summary>
@@ -206,7 +262,7 @@ public class JellyRigSimulator : MonoBehaviour
         }
     }
 
-    private Rigidbody SetupNode(Transform t, float colRadius, List<Collider> colliderList)
+    private Rigidbody SetupNode(Transform t, float colRadius, List<Collider> colliderList, bool enableMaterial = true)
     {
         Rigidbody rb = t.GetComponent<Rigidbody>();
         if (rb == null)
@@ -228,7 +284,8 @@ public class JellyRigSimulator : MonoBehaviour
             col = sphere;
         }
 
-        if (jellyPhysicsMaterial != null)
+        // Assign physics material to child colliders
+        if (jellyPhysicsMaterial != null && enableMaterial)
         {
             col.sharedMaterial = jellyPhysicsMaterial;
         }
@@ -237,14 +294,45 @@ public class JellyRigSimulator : MonoBehaviour
         return rb;
     }
 
-    private void AddSpring(Rigidbody a, Rigidbody b, float springForce)
+    /// <summary>
+    /// Configures full 6-DOF springs (Linear + Angular) using ConfigurableJoint.
+    /// </summary>
+    private void AddSpringJoint(Rigidbody a, Rigidbody b, float linearSpring, float angularSpring)
     {
-        SpringJoint spring = a.gameObject.AddComponent<SpringJoint>();
-        spring.connectedBody = b;
-        spring.spring = springForce;
-        spring.damper = springDamper;
+        ConfigurableJoint joint = a.gameObject.AddComponent<ConfigurableJoint>();
+        joint.connectedBody = b;
 
-        spring.autoConfigureConnectedAnchor = true;
-        spring.enableCollision = false;
+        // Allow joint axes to move/rotate freely within drive limits
+        joint.xMotion = ConfigurableJointMotion.Free;
+        joint.yMotion = ConfigurableJointMotion.Free;
+        joint.zMotion = ConfigurableJointMotion.Free;
+
+        joint.angularXMotion = ConfigurableJointMotion.Free;
+        joint.angularYMotion = ConfigurableJointMotion.Free;
+        joint.angularZMotion = ConfigurableJointMotion.Free;
+
+        joint.rotationDriveMode = RotationDriveMode.Slerp;
+
+        // Position drive setup (Linear spring)
+        JointDrive linDrive = new JointDrive
+        {
+            positionSpring = linearSpring,
+            positionDamper = springDamper,
+            maximumForce = float.MaxValue
+        };
+        joint.xDrive = linDrive;
+        joint.yDrive = linDrive;
+        joint.zDrive = linDrive;
+
+        // Angular drive setup (Rotational spring constraint)
+        JointDrive angDrive = new JointDrive
+        {
+            positionSpring = angularSpring,
+            positionDamper = angularSpringDamper,
+            maximumForce = float.MaxValue
+        };
+        joint.slerpDrive = angDrive;
+
+        joint.enableCollision = false;
     }
 }

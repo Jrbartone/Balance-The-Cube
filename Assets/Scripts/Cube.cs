@@ -8,6 +8,8 @@ public class Cube : MonoBehaviour
     [Header("References")]
     public GameObject renderedCube;
     public ParticleSystem impactParticles;
+    public GameObject renderMask;
+    public GameObject iceSlime;
 
     [Header("Modifiers")]
     [SerializeField] private List<CubeModifier> modifiers = new List<CubeModifier>();
@@ -190,12 +192,15 @@ public class Cube : MonoBehaviour
         Vector3 punchStrength = (Vector3.one + Random.insideUnitSphere * randomMagnitude)
             * Mathf.Clamp(collision.relativeVelocity.magnitude * 0.05f, 0.05f, 0.3f);
 
-        renderedCube.transform.DOPunchScale(
-            punchStrength,
-            duration: 0.35f,
-            vibrato: 10,
-            elasticity: 1f
-        ).OnComplete(() => transform.localScale = cachedLocalScale);
+        if (renderMask != null && renderMask.activeSelf)
+        {
+            renderedCube.transform.DOPunchScale(
+                punchStrength,
+                duration: 0.35f,
+                vibrato: 10,
+                elasticity: 1f
+            ).OnComplete(() => transform.localScale = cachedLocalScale);
+        }
     }
 
     private void PlayImpactParticles(Collision collision)
@@ -276,9 +281,9 @@ public class Cube : MonoBehaviour
         // Locate active Target Group in scene
         CinemachineTargetGroup targetGroup = FindFirstObjectByType<CinemachineTargetGroup>();
 
-        // Calculate half-extent (radius) of the current cube's scale
-        float minRadius = transform.localScale.x * 0.5f * Mathf.Sqrt(3f); // Distance to cube corner
-        float maxRadius = transform.localScale.x * 4f;
+        // Calculate half-extent (radius) based on BASE_SCALE, not currently modified scale
+        float minRadius = BASE_SCALE.x * 0.5f * Mathf.Sqrt(3f);
+        float maxRadius = BASE_SCALE.x * 4f;
 
         for (int i = 0; i < extraCubesToSpawn; i++)
         {
@@ -296,6 +301,12 @@ public class Cube : MonoBehaviour
 
             Cube newCube = Instantiate(this, transform.position + offset, Quaternion.identity);
 
+            // Clean up any cloned FX GameObjects created on Instantiate from the parent
+            newCube.CleanUpClonedFX();
+
+            // Ensure newly instantiated cube has references copied over
+            newCube.iceSlime = this.iceSlime;
+
             // Duplicate modifier list so child instances are distinct ScriptableObjects
             newCube.modifiers = new List<CubeModifier>();
 
@@ -312,6 +323,7 @@ public class Cube : MonoBehaviour
                 newCube.modifiers.Add(modInstance);
             }
 
+            // Reapply modifiers on the newly spawned cube so its own FX and physics are initialized properly
             newCube.ReapplyModifiers();
             spawnedCubes.Add(newCube);
 
@@ -325,14 +337,46 @@ public class Cube : MonoBehaviour
         return spawnedCubes;
     }
 
+    private void CleanUpClonedFX()
+    {
+        // Destroy active effect instances copied over by Instantiate
+        foreach (var fx in activeEffectInstances)
+        {
+            if (fx != null) Destroy(fx);
+        }
+        activeEffectInstances.Clear();
+
+        // Remove any residual FX children attached to renderedCube that were duplicated during Instantiate
+        Transform parentTransform = renderedCube != null ? renderedCube.transform : transform;
+        for (int i = parentTransform.childCount - 1; i >= 0; i--)
+        {
+            Transform child = parentTransform.GetChild(i);
+            // Protect standard component parts if present
+            if (child.gameObject == renderMask) continue;
+            Destroy(child.gameObject);
+        }
+    }
+
     private void ReapplyModifiers()
     {
+        if (renderMask != null)
+        {
+            renderMask.SetActive(true);
+        }
+
         // 1. Reset visual effect instances
         foreach (var fx in activeEffectInstances)
         {
             if (fx != null) Destroy(fx);
         }
         activeEffectInstances.Clear();
+
+        // Reset base transform scale and mass before applying modifier multipliers
+        transform.localScale = BASE_SCALE;
+        if (rb != null)
+        {
+            rb.mass = BASE_MASS;
+        }
 
         // 2. Reset Audio and Material defaults
         activeBonkSound = defaultBonkSound;
@@ -341,6 +385,28 @@ public class Cube : MonoBehaviour
         if (cubeRenderer != null && defaultMaterial != null)
         {
             cubeRenderer.material = defaultMaterial;
+        }
+
+        // Check if both Ice and Slime modifiers are present
+        bool hasIce = false;
+        bool hasSlime = false;
+
+        foreach (var mod in modifiers)
+        {
+            if (mod == null) continue;
+            string modName = mod.name.ToLower();
+            if (modName.Contains("ice")) hasIce = true;
+            if (modName.Contains("slime")) hasSlime = true;
+        }
+
+        bool hasBothIceAndSlime = hasIce && hasSlime;
+        Transform parentTransform = renderedCube != null ? renderedCube.transform : transform;
+
+        // Spawn iceSlime FX if both ice and slime exist
+        if (hasBothIceAndSlime && iceSlime != null)
+        {
+            GameObject iceSlimeFX = Instantiate(iceSlime, parentTransform);
+            activeEffectInstances.Add(iceSlimeFX);
         }
 
         // 3. Accumulate level sums from all modifiers
@@ -357,6 +423,11 @@ public class Cube : MonoBehaviour
         {
             if (mod == null) continue;
 
+            if (mod.disableRenderMask && renderMask != null)
+            {
+                renderMask.SetActive(false);
+            }
+
             totalWeightLevel += mod.weight;
             totalStaticFrictionLevel += mod.staticFriction;
             totalDynamicFrictionLevel += mod.dynamicFriction;
@@ -367,9 +438,15 @@ public class Cube : MonoBehaviour
             // Handle Effect Modifier (Visual updates)
             if (mod is CubeEffectModifier effectMod && effectMod.visualEffectPrefab != null)
             {
-                Transform parentTransform = renderedCube != null ? renderedCube.transform : transform;
-                GameObject fxInstance = Instantiate(effectMod.visualEffectPrefab, parentTransform);
-                activeEffectInstances.Add(fxInstance);
+                // Skip individual FX spawns if both Ice and Slime are present
+                string modName = mod.name.ToLower();
+                bool isIceOrSlime = modName.Contains("ice") || modName.Contains("slime");
+
+                if (!hasBothIceAndSlime || !isIceOrSlime)
+                {
+                    GameObject fxInstance = Instantiate(effectMod.visualEffectPrefab, parentTransform);
+                    activeEffectInstances.Add(fxInstance);
+                }
             }
 
             // Capture the single Material Modifier (last one in list takes precedence if multiple were present)
@@ -428,6 +505,7 @@ public class Cube : MonoBehaviour
 
         // Size: Scale vector scaled around 1.0 (Level 0 = (1,1,1), Level -7 = ~0.28, Level +7 = ~3.58)
         transform.localScale = BASE_SCALE * Mathf.Pow(1.2f, totalSizeLevel);
+        cachedLocalScale = transform.localScale;
 
         // Calculate pitch multiplier inverse to object scale (Larger size = lower pitch, Smaller size = higher pitch)
         currentPitchScale = Mathf.Pow(1.2f, -totalSizeLevel);

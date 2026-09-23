@@ -18,4 +18,5 @@ MonoBehaviour:
   bounciness: 2
   size: 0
   multi: 0
-  visualEffectPrefab: {fileID: 5459411768734526300, guid: c167b060a2470cb449c99268a6dcc86e, type: 3}
+  disableRenderMask: 1
+  visualEffectPrefab: {fileID: 931625521421631074, guid: 1bcedd06cc389854d9f24576494ebe39, type: 3}

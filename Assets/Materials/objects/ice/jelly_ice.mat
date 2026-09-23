@@ -20,7 +20,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Ice 2
+  m_Name: jelly_ice
   m_Shader: {fileID: -6465566751694194690, guid: 390b6dc4084b28f46997e0f6fc5a3eed, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -134,15 +134,15 @@ Material:
     - _WorkflowMode: 1
     - _XRMotionVectorsPass: 1
     - _ZWrite: 1
-    - _fresnelStrength: 1
-    - _refractStrength: 0
+    - _fresnelStrength: 0.6
+    - _refractStrength: 0.002
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
-    - _color: {r: 0, g: 1, b: 0.113725364, a: 1}
-    - _tiling: {r: 0.008, g: 0.008, b: 0, a: 0}
-    - _wholeColor: {r: 0.08904408, g: 0.8207547, b: 0.019357419, a: 1}
+    - _color: {r: 0.4190848, g: 0.6525286, b: 0.87966305, a: 1}
+    - _tiling: {r: 0.1, g: 0.1, b: 0, a: 0}
+    - _wholeColor: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
