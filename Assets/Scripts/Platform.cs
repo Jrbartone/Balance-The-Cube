@@ -191,6 +191,10 @@ public class Platform : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
+        if (collision.gameObject.layer == LayerMask.NameToLayer("JellyCube"))
+        {
+            return;
+        }
         Rigidbody otherRb = collision.rigidbody;
         float mass = (otherRb != null && otherRb.mass < 2f) ? otherRb.mass : 2f;
         Vector3 impulse = collision.relativeVelocity * mass;
@@ -203,6 +207,10 @@ public class Platform : MonoBehaviour
 
     private void OnCollisionStay(Collision collision)
     {
+        if (collision.gameObject.layer == LayerMask.NameToLayer("JellyCube"))
+        {
+            return;
+        }
         Rigidbody otherRb = collision.rigidbody;
         float mass = (otherRb != null) ? otherRb.mass : 1f;
 
