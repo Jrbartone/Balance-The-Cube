@@ -262,6 +262,23 @@ public class JellyRigSimulator : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Updates the PhysicsMaterial assigned to all jelly node colliders at runtime.
+    /// </summary>
+    /// <param name="newMaterial">The new PhysicsMaterial to apply.</param>
+    public void UpdateJellyMaterial(PhysicsMaterial newMaterial)
+    {
+        jellyPhysicsMaterial = newMaterial;
+
+        foreach(Transform t in outerCornerPoints)
+        {
+            if (t.gameObject.GetComponent<Collider>() != null)
+            {
+                t.gameObject.GetComponent<Collider>().sharedMaterial = jellyPhysicsMaterial;
+            }
+        }
+    }
+
     private Rigidbody SetupNode(Transform t, float colRadius, List<Collider> colliderList, bool enableMaterial = true)
     {
         Rigidbody rb = t.GetComponent<Rigidbody>();
@@ -270,7 +287,9 @@ public class JellyRigSimulator : MonoBehaviour
             rb = t.gameObject.AddComponent<Rigidbody>();
         }
 
-        rb.mass = massPerNode;
+        if(t != centerPoint){
+            rb.mass = massPerNode;
+        }
         rb.linearDamping = drag;
         rb.angularDamping = drag;
         rb.useGravity = true;

@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 42493f0bc749b33448059fa202cf8269, type: 3}
-  m_Name: DefaultSlide
+  m_Name: ElectricityLoop
   m_EditorClassIdentifier: Assembly-CSharp::AudioCueSO
   mixerGroup: {fileID: 7464899381754628923, guid: 10153506a5c5100498211cb64e4b18c7, type: 2}
   clips:
-  - {fileID: 8300000, guid: 563dd05f923cccc4d83b916ef25472ed, type: 3}
+  - {fileID: 8300000, guid: 4a3416442c96a6342b815a5851506704, type: 3}
   volume: 0.5
   loop: 1
-  basePitch: 0.9
+  basePitch: 0.8
   pitchRandomRange: 0

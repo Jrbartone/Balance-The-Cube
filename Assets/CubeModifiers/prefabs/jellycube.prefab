@@ -212,7 +212,7 @@ MonoBehaviour:
   innerStructuralSpringForce: 75
   outerStructuralSpringForce: 75
   innerToOuterSpringForce: 75
-  springDamper: 1
+  springDamper: 0
   angularSpringForce: 10
   angularSpringDamper: 0
 --- !u!4 &1533891781166752998 stripped

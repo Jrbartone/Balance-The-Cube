@@ -15,8 +15,16 @@ MonoBehaviour:
   weight: 0
   staticFriction: 0
   dynamicFriction: 0
-  bounciness: 2
+  bounciness: 4
   size: 0
   multi: 0
   disableRenderMask: 1
+  bonkSoundOverride: {fileID: 11400000, guid: cf1cf3c5b64ae1745bc41ea9ba37c467, type: 2}
+  binkSoundOverride: {fileID: 11400000, guid: 3ad999a4d81fcf841b9faa7c9bc0c238, type: 2}
+  slideSoundOverride: {fileID: 11400000, guid: 4ad9eba5d8b391b4c9f8f4e471b46697, type: 2}
+  soundOverridePriority: 1
   visualEffectPrefab: {fileID: 931625521421631074, guid: 1bcedd06cc389854d9f24576494ebe39, type: 3}
+  impactParticlePrefab: {fileID: 0}
+  disableImpactParticles: 1
+  impactParticlePriority: 10
+  loopingSoundEffect: {fileID: 0}

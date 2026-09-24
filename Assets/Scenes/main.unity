@@ -7951,7 +7951,12 @@ MonoBehaviour:
   renderMask: {fileID: 1827568156}
   iceSlime: {fileID: 931625521421631074, guid: 4c65bf9490bfaeb46b7b11a804470563, type: 3}
   modifiers:
-  - {fileID: 11400000, guid: d322531f140628e4785fc05135f6e4ef, type: 2}
+  - {fileID: 11400000, guid: 6de7ec6343bbce243ba2f12cd403df35, type: 2}
+  - {fileID: 11400000, guid: f159bf43ffe8253499d2ee09dda74092, type: 2}
+  - {fileID: 11400000, guid: 62e0d61bc2cc19843ad2e55fbb76380c, type: 2}
+  - {fileID: 11400000, guid: 62e0d61bc2cc19843ad2e55fbb76380c, type: 2}
+  - {fileID: 11400000, guid: 62e0d61bc2cc19843ad2e55fbb76380c, type: 2}
+  - {fileID: 11400000, guid: a9f90c8200097094791a7c88790119d5, type: 2}
   defaultBonkSound: {fileID: 11400000, guid: a1f08af146b170047982a66a3a227f8b, type: 2}
   defaultBinkSound: {fileID: 11400000, guid: 56d68d3fe25b6694aab568135548c55f, type: 2}
   defaultSlideSound: {fileID: 11400000, guid: 8a3c2fdf3613a184786383411bed6f30, type: 2}

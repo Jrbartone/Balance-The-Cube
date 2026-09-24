@@ -10,7 +10,14 @@ public abstract class CubeModifier : ScriptableObject
     [Range(-7, 7)] public int size = 0;
     [Range(-7, 7)] public int multi = 0;
 
+    [Header("Render Mask")]
     public bool disableRenderMask = false;
+
+    [Header("Audio Overrides")]
+    public AudioCueSO bonkSoundOverride;
+    public AudioCueSO binkSoundOverride;
+    public AudioCueSO slideSoundOverride;
+    public int soundOverridePriority = 0;
 
     private void OnValidate()
     {

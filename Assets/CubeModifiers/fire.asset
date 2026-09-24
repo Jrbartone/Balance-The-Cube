@@ -18,4 +18,13 @@ MonoBehaviour:
   bounciness: 7
   size: 0
   multi: 0
+  disableRenderMask: 0
+  bonkSoundOverride: {fileID: 0}
+  binkSoundOverride: {fileID: 0}
+  slideSoundOverride: {fileID: 0}
+  soundOverridePriority: 0
   visualEffectPrefab: {fileID: 4130882034144767873, guid: 6dc4b246d95972b459b3c84f2c926331, type: 3}
+  impactParticlePrefab: {fileID: 0}
+  disableImpactParticles: 0
+  impactParticlePriority: 0
+  loopingSoundEffect: {fileID: 11400000, guid: 0a73efeb1b87fb54a8b3350008ba5620, type: 2}

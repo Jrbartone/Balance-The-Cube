@@ -35,10 +35,12 @@ public class Cube : MonoBehaviour
     private Collider cubeCollider;
     private Material defaultMaterial;
 
-    // Slide Audio State
+    // Slide & Loop Audio State
     private const float MAX_SLIDE_VELOCITY = 5f;
     private const float MIN_SLIDE_VELOCITY = 0.005f;
     private TrackedAudioInstance slideAudioInstance;
+    private readonly List<TrackedAudioInstance> activeLoopingAudioInstances = new List<TrackedAudioInstance>();
+    private readonly List<AudioCueSO> activeLoopingSoundEffects = new List<AudioCueSO>();
     private int collidedObjects;
     private float targetSlideVolume;
     private float currentSlideVolume;
@@ -50,6 +52,15 @@ public class Cube : MonoBehaviour
     // Modifier Runtime State
     private AudioCueSO activeBonkSound;
     private AudioCueSO activeBinkSound;
+    private AudioCueSO activeSlideSound;
+    private int highestAudioPriority = int.MinValue;
+
+    // Impact Particle State
+    private ParticleSystem activeImpactParticles;
+    private ParticleSystem spawnedCustomImpactParticles;
+    private bool areImpactParticlesDisabled;
+    private int highestParticlePriority = int.MinValue;
+
     private readonly List<GameObject> activeEffectInstances = new List<GameObject>();
     private int multiCubeCount = 1;
     private float currentPitchScale = 1.0f;
@@ -85,9 +96,8 @@ public class Cube : MonoBehaviour
     private void Start()
     {
         transform.rotation = Random.rotation;
-        slideAudioInstance = AudioManager.Instance.PlayTrackedLoop(defaultSlideSound, transform);
 
-        // Apply any modifiers configured in the Inspector
+        // Apply modifiers configured in Inspector (also updates Jelly Material internally)
         ReapplyModifiers();
 
         cachedLocalScale = transform.localScale;
@@ -110,6 +120,14 @@ public class Cube : MonoBehaviour
         if (slideAudioInstance != null)
         {
             slideAudioInstance.UpdateParameters(currentSlideVolume, currentPitchScale);
+        }
+
+        foreach (var loopInstance in activeLoopingAudioInstances)
+        {
+            if (loopInstance != null)
+            {
+                loopInstance.UpdateParameters(1.0f, currentPitchScale);
+            }
         }
     }
 
@@ -205,7 +223,7 @@ public class Cube : MonoBehaviour
 
     private void PlayImpactParticles(Collision collision)
     {
-        if (impactParticles == null || collision.contacts.Length == 0) return;
+        if (areImpactParticlesDisabled || activeImpactParticles == null || collision.contacts.Length == 0) return;
 
         float impactForce = collision.impulse.magnitude / Time.fixedDeltaTime;
 
@@ -214,9 +232,9 @@ public class Cube : MonoBehaviour
 
         // Get the primary contact point and position particle system at impact point
         ContactPoint contact = collision.contacts[0];
-        impactParticles.transform.position = contact.point;
+        activeImpactParticles.transform.position = contact.point;
 
-        impactParticles.Play();
+        activeImpactParticles.Play();
     }
 
     private void PlayImpactSounds(Collision collision)
@@ -232,6 +250,22 @@ public class Cube : MonoBehaviour
             tempCue.basePitch = targetCue.GetRandomPitch(currentPitchScale);
 
             AudioManager.Instance.Play3DSFX(tempCue, transform.position);
+        }
+    }
+
+    private void UpdateJellyMaterialIfPresent(PhysicsMaterial physicsMat = null)
+    {
+        foreach (GameObject fxInstance in activeEffectInstances)
+        {
+            if (fxInstance == null) continue;
+
+            // Check if this instantiated FX prefab or any of its children contains the Jelly component
+            JellyRigSimulator jellyComponent = fxInstance.GetComponentInChildren<JellyRigSimulator>();
+            if (jellyComponent != null)
+            {
+                jellyComponent.UpdateJellyMaterial(physicsMat);
+                break;
+            }
         }
     }
 
@@ -325,6 +359,7 @@ public class Cube : MonoBehaviour
 
             // Reapply modifiers on the newly spawned cube so its own FX and physics are initialized properly
             newCube.ReapplyModifiers();
+
             spawnedCubes.Add(newCube);
 
             // Add newly spawned cube to Cinemachine Target Group
@@ -345,6 +380,12 @@ public class Cube : MonoBehaviour
             if (fx != null) Destroy(fx);
         }
         activeEffectInstances.Clear();
+
+        if (spawnedCustomImpactParticles != null)
+        {
+            Destroy(spawnedCustomImpactParticles.gameObject);
+            spawnedCustomImpactParticles = null;
+        }
 
         // Remove any residual FX children attached to renderedCube that were duplicated during Instantiate
         Transform parentTransform = renderedCube != null ? renderedCube.transform : transform;
@@ -371,6 +412,12 @@ public class Cube : MonoBehaviour
         }
         activeEffectInstances.Clear();
 
+        if (spawnedCustomImpactParticles != null)
+        {
+            Destroy(spawnedCustomImpactParticles.gameObject);
+            spawnedCustomImpactParticles = null;
+        }
+
         // Reset base transform scale and mass before applying modifier multipliers
         transform.localScale = BASE_SCALE;
         if (rb != null)
@@ -381,6 +428,14 @@ public class Cube : MonoBehaviour
         // 2. Reset Audio and Material defaults
         activeBonkSound = defaultBonkSound;
         activeBinkSound = defaultBinkSound;
+        activeSlideSound = defaultSlideSound;
+        highestAudioPriority = int.MinValue;
+        activeLoopingSoundEffects.Clear();
+
+        // Particle Defaults
+        activeImpactParticles = impactParticles;
+        areImpactParticlesDisabled = false;
+        highestParticlePriority = int.MinValue;
 
         if (cubeRenderer != null && defaultMaterial != null)
         {
@@ -409,7 +464,7 @@ public class Cube : MonoBehaviour
             activeEffectInstances.Add(iceSlimeFX);
         }
 
-        // 3. Accumulate level sums from all modifiers
+        // 3. Accumulate level sums and evaluate overrides
         int totalWeightLevel = 0;
         int totalStaticFrictionLevel = 0;
         int totalDynamicFrictionLevel = 0;
@@ -418,6 +473,7 @@ public class Cube : MonoBehaviour
         int totalMultiLevel = 0;
 
         CubeMaterialModifer activeMaterialModifier = null;
+        GameObject customImpactPrefabToSpawn = null;
 
         foreach (var mod in modifiers)
         {
@@ -435,17 +491,37 @@ public class Cube : MonoBehaviour
             totalSizeLevel += mod.size;
             totalMultiLevel += mod.multi;
 
-            // Handle Effect Modifier (Visual updates)
-            if (mod is CubeEffectModifier effectMod && effectMod.visualEffectPrefab != null)
+            // Handle Effect Modifier (Visual and Audio FX)
+            if (mod is CubeEffectModifier effectMod)
             {
-                // Skip individual FX spawns if both Ice and Slime are present
-                string modName = mod.name.ToLower();
-                bool isIceOrSlime = modName.Contains("ice") || modName.Contains("slime");
-
-                if (!hasBothIceAndSlime || !isIceOrSlime)
+                if (effectMod.visualEffectPrefab != null)
                 {
-                    GameObject fxInstance = Instantiate(effectMod.visualEffectPrefab, parentTransform);
-                    activeEffectInstances.Add(fxInstance);
+                    // Skip individual FX spawns if both Ice and Slime are present
+                    string modName = mod.name.ToLower();
+                    bool isIceOrSlime = modName.Contains("ice") || modName.Contains("slime");
+
+                    if (!hasBothIceAndSlime || !isIceOrSlime)
+                    {
+                        GameObject fxInstance = Instantiate(effectMod.visualEffectPrefab, parentTransform);
+                        activeEffectInstances.Add(fxInstance);
+                    }
+                }
+
+                if (effectMod.loopingSoundEffect != null)
+                {
+                    activeLoopingSoundEffects.Add(effectMod.loopingSoundEffect);
+                }
+
+                // Evaluate Impact Particles Priority
+                if (effectMod.impactParticlePriority >= highestParticlePriority)
+                {
+                    highestParticlePriority = effectMod.impactParticlePriority;
+                    areImpactParticlesDisabled = effectMod.disableImpactParticles;
+
+                    if (effectMod.impactParticlePrefab != null)
+                    {
+                        customImpactPrefabToSpawn = effectMod.impactParticlePrefab;
+                    }
                 }
             }
 
@@ -453,6 +529,28 @@ public class Cube : MonoBehaviour
             if (mod is CubeMaterialModifer matMod)
             {
                 activeMaterialModifier = matMod;
+            }
+
+            // Evaluate Sound Overrides based on soundOverridePriority
+            bool hasAudioOverride = mod.bonkSoundOverride != null || mod.binkSoundOverride != null || mod.slideSoundOverride != null;
+            if (hasAudioOverride && mod.soundOverridePriority >= highestAudioPriority)
+            {
+                highestAudioPriority = mod.soundOverridePriority;
+
+                if (mod.bonkSoundOverride != null) activeBonkSound = mod.bonkSoundOverride;
+                if (mod.binkSoundOverride != null) activeBinkSound = mod.binkSoundOverride;
+                if (mod.slideSoundOverride != null) activeSlideSound = mod.slideSoundOverride;
+            }
+        }
+
+        // Spawn custom impact particle system if specified
+        if (customImpactPrefabToSpawn != null)
+        {
+            GameObject spawnedParticleObject = Instantiate(customImpactPrefabToSpawn);
+            spawnedCustomImpactParticles = spawnedParticleObject.GetComponent<ParticleSystem>();
+            if (spawnedCustomImpactParticles != null)
+            {
+                activeImpactParticles = spawnedCustomImpactParticles;
             }
         }
 
@@ -475,22 +573,27 @@ public class Cube : MonoBehaviour
             negativeFrictionBoost = 0f;
         }
 
-        // 4. Apply Material & Audio overrides
+        // 4. Apply Material defaults (and fallbacks if no higher priority override set bonk/bink)
         if (activeMaterialModifier != null)
         {
             if (cubeRenderer != null && activeMaterialModifier.material != null)
             {
                 cubeRenderer.material = activeMaterialModifier.material;
             }
-            if (activeMaterialModifier.bonkSound != null)
+
+            // Material sounds act as fallback if no custom audio override priority superseded them
+            if (activeBonkSound == defaultBonkSound && activeMaterialModifier.bonkSound != null)
             {
                 activeBonkSound = activeMaterialModifier.bonkSound;
             }
-            if (activeMaterialModifier.binkSound != null)
+            if (activeBinkSound == defaultBinkSound && activeMaterialModifier.binkSound != null)
             {
                 activeBinkSound = activeMaterialModifier.binkSound;
             }
         }
+
+        // Refresh dynamic audio loops
+        UpdateAudioLoops();
 
         // 5. Calculate and apply parameters using reasonable bounded formulas
 
@@ -511,9 +614,10 @@ public class Cube : MonoBehaviour
         currentPitchScale = Mathf.Pow(1.2f, -totalSizeLevel);
 
         // Physics Material (Friction and Bounciness)
+        PhysicsMaterial physMat = null;
         if (cubeCollider != null)
         {
-            PhysicsMaterial physMat = new PhysicsMaterial("CubeDynamicPhysicsMat")
+            physMat = new PhysicsMaterial("CubeDynamicPhysicsMat")
             {
                 staticFriction = Mathf.Clamp(BASE_STATIC_FRICTION + (totalStaticFrictionLevel * 0.14f), 0f, 1.0f),
                 dynamicFriction = Mathf.Clamp(BASE_DYNAMIC_FRICTION + (totalDynamicFrictionLevel * 0.14f), 0f, 1.0f),
@@ -522,6 +626,45 @@ public class Cube : MonoBehaviour
                 bounceCombine = PhysicsMaterialCombine.Maximum
             };
             cubeCollider.material = physMat;
+        }
+
+        // Update jelly material once with the newly generated physics material
+        UpdateJellyMaterialIfPresent(physMat);
+    }
+
+    private void UpdateAudioLoops()
+    {
+        if (AudioManager.Instance == null) return;
+
+        // Stop current slide loop
+        if (slideAudioInstance != null)
+        {
+            slideAudioInstance.StopAndRelease();
+            slideAudioInstance = null;
+        }
+
+        // Stop existing effect loops
+        foreach (var loop in activeLoopingAudioInstances)
+        {
+            if (loop != null) loop.StopAndRelease();
+        }
+        activeLoopingAudioInstances.Clear();
+
+        // Start slide audio track
+        if (activeSlideSound != null)
+        {
+            slideAudioInstance = AudioManager.Instance.PlayTrackedLoop(activeSlideSound, transform);
+        }
+
+        // Start looping effect sounds
+        foreach (var loopCue in activeLoopingSoundEffects)
+        {
+            if (loopCue == null) continue;
+            TrackedAudioInstance instance = AudioManager.Instance.PlayTrackedLoop(loopCue, transform);
+            if (instance != null)
+            {
+                activeLoopingAudioInstances.Add(instance);
+            }
         }
     }
 
