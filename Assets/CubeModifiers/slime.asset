@@ -14,10 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CubeEffectModifier
   weight: 0
   staticFriction: 0
-  dynamicFriction: 0
-  bounciness: 4
+  dynamicFriction: 3
+  bounciness: 0
   size: 0
   multi: 0
+  canStack: 0
   disableRenderMask: 1
   bonkSoundOverride: {fileID: 11400000, guid: cf1cf3c5b64ae1745bc41ea9ba37c467, type: 2}
   binkSoundOverride: {fileID: 11400000, guid: 3ad999a4d81fcf841b9faa7c9bc0c238, type: 2}

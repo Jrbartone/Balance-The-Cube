@@ -9,6 +9,7 @@ public abstract class CubeModifier : ScriptableObject
     [Range(-7, 7)] public int bounciness = 0;
     [Range(-7, 7)] public int size = 0;
     [Range(-7, 7)] public int multi = 0;
+    public bool canStack = true;
 
     [Header("Render Mask")]
     public bool disableRenderMask = false;

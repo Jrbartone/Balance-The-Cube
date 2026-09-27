@@ -18,8 +18,9 @@ public class Cube : MonoBehaviour
     [SerializeField] private AudioCueSO defaultBonkSound;
     [SerializeField] private AudioCueSO defaultBinkSound;
     [SerializeField] private AudioCueSO defaultSlideSound;
+    [SerializeField] private AudioCueSO aerialSound;
 
-    [Header("Slide Audio Smoothing")]
+    [Header("Slide & Aerial Audio Smoothing")]
     [Tooltip("Adjust to speed up or slow down the fade duration")]
     [SerializeField] private float audioFadeSpeed = 5f;
 
@@ -37,13 +38,17 @@ public class Cube : MonoBehaviour
 
     // Slide & Loop Audio State
     private const float MAX_SLIDE_VELOCITY = 5f;
-    private const float MIN_SLIDE_VELOCITY = 0.005f;
+    private const float MIN_SLIDE_VELOCITY = 1.5f;
     private TrackedAudioInstance slideAudioInstance;
+    private TrackedAudioInstance aerialAudioInstance;
     private readonly List<TrackedAudioInstance> activeLoopingAudioInstances = new List<TrackedAudioInstance>();
     private readonly List<AudioCueSO> activeLoopingSoundEffects = new List<AudioCueSO>();
-    private int collidedObjects;
     private float targetSlideVolume;
     private float currentSlideVolume;
+    private float targetAerialVolume;
+    private float currentAerialVolume;
+    private int jellyCubeLayer;
+    private int exclusionMask;
 
     // Impact & Debounce State
     private const float DEBOUNCE_COOLDOWN = 0.4f;
@@ -80,6 +85,8 @@ public class Cube : MonoBehaviour
 
     private void Awake()
     {
+        jellyCubeLayer = LayerMask.NameToLayer("JellyCube");
+        exclusionMask = ~(1 << jellyCubeLayer);
         rb = GetComponent<Rigidbody>();
         cubeCollider = GetComponent<Collider>();
 
@@ -111,15 +118,48 @@ public class Cube : MonoBehaviour
 
     private void Update()
     {
-        // Smoothly update the actual audio volume toward the calculated target each frame
+
+        if (!CheckIfColliding() || rb.linearVelocity.magnitude <= MIN_SLIDE_VELOCITY)
+        {
+            targetSlideVolume = 0f;
+        } else {
+            // Determine intended target volume based on velocity and state
+            targetSlideVolume = Mathf.Clamp01(rb.linearVelocity.magnitude / MAX_SLIDE_VELOCITY);
+        }
+
+        // Calculate aerial audio volume target (active when not colliding with any surfaces)
+        if (!CheckIfColliding() && rb != null)
+        {
+            float velocityMagnitude = rb.linearVelocity.magnitude;
+            targetAerialVolume = (velocityMagnitude <= MIN_SLIDE_VELOCITY) 
+                ? 0f 
+                : Mathf.Clamp01(velocityMagnitude / MAX_SLIDE_VELOCITY);
+        }
+        else
+        {
+            targetAerialVolume = 0f;
+        }
+
+        // Smoothly update slide audio volume
         if (currentSlideVolume != targetSlideVolume)
         {
             currentSlideVolume = Mathf.MoveTowards(currentSlideVolume, targetSlideVolume, audioFadeSpeed * Time.deltaTime);
         }
 
+        // Smoothly update aerial audio volume
+        if (currentAerialVolume != targetAerialVolume)
+        {
+            currentAerialVolume = Mathf.MoveTowards(currentAerialVolume, targetAerialVolume, audioFadeSpeed * Time.deltaTime);
+        }
+
         if (slideAudioInstance != null)
         {
             slideAudioInstance.UpdateParameters(currentSlideVolume, currentPitchScale);
+        }
+
+        if (aerialAudioInstance != null)
+        {
+            aerialAudioInstance.UpdateParameters(currentAerialVolume, currentPitchScale);
         }
 
         foreach (var loopInstance in activeLoopingAudioInstances)
@@ -137,8 +177,6 @@ public class Cube : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        collidedObjects++;
-
         // Only proceed if force exceeds threshold
         if (collision.impulse.magnitude / Time.fixedDeltaTime > minImpactForce)
         {
@@ -148,38 +186,14 @@ public class Cube : MonoBehaviour
 
     private void OnCollisionStay(Collision collision)
     {
-        if (collidedObjects == 0)
+        // Apply direction-aligned surface acceleration if negative friction modifier is active
+        if (negativeFrictionBoost > 0f && collision.contacts.Length > 0)
         {
-            collidedObjects = 1;
-        }
+            Vector3 surfaceNormal = collision.contacts[0].normal;
+            Vector3 slideDirection = Vector3.ProjectOnPlane(rb.linearVelocity, surfaceNormal).normalized;
 
-        // Determine intended target volume based on velocity and state
-        if (rb.linearVelocity.magnitude <= MIN_SLIDE_VELOCITY)
-        {
-            targetSlideVolume = 0f;
-        }
-        else
-        {
-            targetSlideVolume = Mathf.Clamp01(rb.linearVelocity.magnitude / MAX_SLIDE_VELOCITY);
-
-            // Apply direction-aligned surface acceleration if negative friction modifier is active
-            if (negativeFrictionBoost > 0f && collision.contacts.Length > 0)
-            {
-                Vector3 surfaceNormal = collision.contacts[0].normal;
-                Vector3 slideDirection = Vector3.ProjectOnPlane(rb.linearVelocity, surfaceNormal).normalized;
-
-                // ForceMode.Acceleration scales automatically with mass for consistent feel
-                rb.AddForce(slideDirection * negativeFrictionBoost, ForceMode.Acceleration);
-            }
-        }
-    }
-
-    private void OnCollisionExit(Collision collision)
-    {
-        collidedObjects = Mathf.Max(0, collidedObjects - 1);
-        if (collidedObjects == 0)
-        {
-            targetSlideVolume = 0f;
+            // ForceMode.Acceleration scales automatically with mass for consistent feel
+            rb.AddForce(slideDirection * negativeFrictionBoost, ForceMode.Acceleration);
         }
     }
 
@@ -400,6 +414,27 @@ public class Cube : MonoBehaviour
 
     private void ReapplyModifiers()
     {
+        // Deduplicate non-stackable modifiers based on specific modifier asset identity
+        List<CubeModifier> processedModifiers = new List<CubeModifier>();
+        HashSet<CubeModifier> seenNonStackableModifiers = new HashSet<CubeModifier>();
+
+        foreach (var mod in modifiers)
+        {
+            if (mod == null) continue;
+
+            // If the modifier cannot stack, only allow one instance of that specific modifier asset
+            if (!mod.canStack)
+            {
+                if (seenNonStackableModifiers.Contains(mod))
+                {
+                    continue; // Skip duplicate instances of the same ScriptableObject
+                }
+                seenNonStackableModifiers.Add(mod);
+            }
+
+            processedModifiers.Add(mod);
+        }
+
         if (renderMask != null)
         {
             renderMask.SetActive(true);
@@ -446,7 +481,7 @@ public class Cube : MonoBehaviour
         bool hasIce = false;
         bool hasSlime = false;
 
-        foreach (var mod in modifiers)
+        foreach (var mod in processedModifiers)
         {
             if (mod == null) continue;
             string modName = mod.name.ToLower();
@@ -475,7 +510,7 @@ public class Cube : MonoBehaviour
         CubeMaterialModifer activeMaterialModifier = null;
         GameObject customImpactPrefabToSpawn = null;
 
-        foreach (var mod in modifiers)
+        foreach (var mod in processedModifiers)
         {
             if (mod == null) continue;
 
@@ -643,6 +678,13 @@ public class Cube : MonoBehaviour
             slideAudioInstance = null;
         }
 
+        // Stop current aerial loop
+        if (aerialAudioInstance != null)
+        {
+            aerialAudioInstance.StopAndRelease();
+            aerialAudioInstance = null;
+        }
+
         // Stop existing effect loops
         foreach (var loop in activeLoopingAudioInstances)
         {
@@ -656,6 +698,12 @@ public class Cube : MonoBehaviour
             slideAudioInstance = AudioManager.Instance.PlayTrackedLoop(activeSlideSound, transform);
         }
 
+        // Start aerial audio track
+        if (aerialSound != null)
+        {
+            aerialAudioInstance = AudioManager.Instance.PlayTrackedLoop(aerialSound, transform);
+        }
+
         // Start looping effect sounds
         foreach (var loopCue in activeLoopingSoundEffects)
         {
@@ -666,6 +714,17 @@ public class Cube : MonoBehaviour
                 activeLoopingAudioInstances.Add(instance);
             }
         }
+    }
+
+    public bool CheckIfColliding()
+    {
+        float radius = transform.localScale.x; 
+
+        // 4. Pass the mask into the Overlap function as the final argument
+        Collider[] hitColliders = Physics.OverlapSphere(transform.position, radius, exclusionMask, QueryTriggerInteraction.Ignore);
+
+        // If length is greater than 1, it's hitting something other than itself
+        return hitColliders.Length > 1;
     }
 
     #endregion
