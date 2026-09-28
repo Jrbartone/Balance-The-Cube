@@ -76,13 +76,18 @@ public class JellyRigSimulator : MonoBehaviour
             centerPoint = grandParent;
         }
 
-        // Fetch the physics material from transform.parent.parent if none is assigned in the Inspector
-        if (jellyPhysicsMaterial == null && grandParent != null)
+        if (centerPoint == null) 
         {
-            Collider grandParentCollider = grandParent.GetComponent<Collider>();
-            if (grandParentCollider != null && grandParentCollider.sharedMaterial != null)
+            centerPoint = transform.parent != null ? transform.parent : null;;
+        }
+
+        // Fetch the physics material from transform.parent.parent if none is assigned in the Inspector
+        if (jellyPhysicsMaterial == null && centerPoint != null)
+        {
+            Collider centerPointCollider = centerPoint.GetComponent<Collider>();
+            if (centerPointCollider != null && centerPointCollider.sharedMaterial != null)
             {
-                jellyPhysicsMaterial = grandParentCollider.sharedMaterial;
+                jellyPhysicsMaterial = centerPointCollider.sharedMaterial;
             }
         }
 
