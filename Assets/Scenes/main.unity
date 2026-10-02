@@ -4721,6 +4721,60 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 618352997}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &628799941
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 628799943}
+  - component: {fileID: 628799942}
+  m_Layer: 0
+  m_Name: FloatingTextSpawner
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &628799942
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 628799941}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 94e58285461556d48963d58e667379c3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FloatingTextSpawner
+  floatingTextPrefab: {fileID: 1116277954754010459, guid: 482b56b16298b0044b9aef2fc04d93c8, type: 3}
+  targetCanvas: {fileID: 544181568}
+  punchDuration: 0.3
+  punchScale: {x: 0.3, y: 0.3, z: 0.3}
+  floatDistance: 100
+  horizontalOffset: 100
+  verticalOffset: 50
+  floatDuration: 1.2
+  floatEase: 6
+  delayBetweenSpawns: 0.15
+--- !u!4 &628799943
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 628799941}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.62255, y: -2, z: -1.40338}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &657867284
 GameObject:
   m_ObjectHideFlags: 0
@@ -9868,7 +9922,7 @@ PrefabInstance:
     - target: {fileID: 6128140153830238031, guid: d84453771d295334096f99e7b46723d5, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: d3079795447d0a44bb6a1e6139553cab, type: 2}
+      objectReference: {fileID: 2100000, guid: 29d3c53a3d239554bb7a3645b16cc315, type: 2}
     - target: {fileID: 7036213049465896255, guid: d84453771d295334096f99e7b46723d5, type: 3}
       propertyPath: m_Layer
       value: 0
@@ -10637,7 +10691,11 @@ MonoBehaviour:
   renderMask: {fileID: 1827568156}
   trackSpawnedObjectsWithCamera: 1
   modifiers:
-  - {fileID: 11400000, guid: 10fffc7e23b526a4db1b52213cd90e0e, type: 2}
+  - {fileID: 11400000, guid: a9f90c8200097094791a7c88790119d5, type: 2}
+  - {fileID: 11400000, guid: d322531f140628e4785fc05135f6e4ef, type: 2}
+  - {fileID: 11400000, guid: 6de7ec6343bbce243ba2f12cd403df35, type: 2}
+  - {fileID: 11400000, guid: aaa9580419119d04981f948fa93af87f, type: 2}
+  - {fileID: 11400000, guid: f159bf43ffe8253499d2ee09dda74092, type: 2}
   OnPhysicsMaterialUpdated:
     m_PersistentCalls:
       m_Calls: []
@@ -15095,3 +15153,4 @@ SceneRoots:
   - {fileID: 840068358}
   - {fileID: 1279310738}
   - {fileID: 544181569}
+  - {fileID: 628799943}

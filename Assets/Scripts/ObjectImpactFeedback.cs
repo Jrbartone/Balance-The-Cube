@@ -47,6 +47,9 @@ public class ObjectImpactFeedback : MonoBehaviour
     private ParticleSystem spawnedCustomImpactParticles;
     private ParticleSystem lastCustomPrefabReference;
 
+    private TrackedTextHandle textHandle;
+    private float timer = 0;
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
@@ -107,6 +110,9 @@ public class ObjectImpactFeedback : MonoBehaviour
         {
             loopInstance?.UpdateParameters(1.0f, pitchScale);
         }
+
+        timer+=Time.deltaTime * 10;
+        playSlideText();
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -126,6 +132,7 @@ public class ObjectImpactFeedback : MonoBehaviour
         PlayImpactParticles(collision);
         PlayImpactSounds(collision);
         PlayImpactTween(collision);
+        playImpactText();
     }
 
     public void UpdateAudioLoops()
@@ -230,6 +237,23 @@ public class ObjectImpactFeedback : MonoBehaviour
         }
     }
 
+    private void playImpactText(){
+        FloatingTextSpawner.Instance.SpawnText(gameObject, "bonk", transform.position);
+    }
+
+    private void playSlideText(){
+        if(targetSlideVolume < .01f){
+            FloatingTextSpawner.Instance.ReleaseText(textHandle);
+            textHandle = null;
+            return;
+        }
+        if(textHandle != null) {
+            textHandle.SetText((int) timer + "");
+            return;
+        }
+        textHandle = FloatingTextSpawner.Instance.SpawnHoldText((int) timer + "", transform); 
+    }
+
     private void PlayImpactSounds(Collision collision)
     {
         float impactForce = collision.impulse.magnitude / Time.fixedDeltaTime;
@@ -256,8 +280,12 @@ public class ObjectImpactFeedback : MonoBehaviour
     public bool CheckIfColliding()
     {
         float radius = transform.localScale.x;
-        Collider[] hitColliders = Physics.OverlapSphere(transform.position, radius, exclusionMask, QueryTriggerInteraction.Ignore);
-        return hitColliders.Length > 1;
+        int platformLayerMask = 1 << LayerMask.NameToLayer("Platform");
+        
+        Collider[] hitColliders = Physics.OverlapSphere(transform.position, radius, platformLayerMask, QueryTriggerInteraction.Ignore);
+        
+        // Returns true if touching at least one object on the Platform layer
+        return hitColliders.Length > 0; 
     }
 
     public void CleanUpClonedParticles()
