@@ -344,7 +344,7 @@ public class ObjectModifierController : MonoBehaviour
                 }
             }
 
-            var newImpactFeedback = newObject.GetComponent<ObjectImpactFeedback>();
+            var newImpactFeedback = newObject.GetComponent<ObjectImpactVisualFeedback>();
             if (newImpactFeedback != null)
             {
                 newImpactFeedback.CleanUpClonedParticles();

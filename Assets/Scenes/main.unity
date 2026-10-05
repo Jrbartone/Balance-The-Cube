@@ -4400,6 +4400,7 @@ Transform:
   m_Children:
   - {fileID: 1076041401}
   - {fileID: 356821260}
+  - {fileID: 628799943}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &602217641
@@ -4768,12 +4769,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 628799941}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.62255, y: -2, z: -1.40338}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -3.15915, y: 34.43251, z: 52.59916}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 559287524}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &657867284
 GameObject:
@@ -10590,7 +10591,10 @@ GameObject:
   - component: {fileID: 1210545998}
   - component: {fileID: 1210546003}
   - component: {fileID: 1210546004}
-  - component: {fileID: 1210546005}
+  - component: {fileID: 1210546008}
+  - component: {fileID: 1210546007}
+  - component: {fileID: 1210546006}
+  - component: {fileID: 1210546009}
   m_Layer: 8
   m_Name: the cube
   m_TagString: Untagged
@@ -10691,15 +10695,13 @@ MonoBehaviour:
   renderMask: {fileID: 1827568156}
   trackSpawnedObjectsWithCamera: 1
   modifiers:
-  - {fileID: 11400000, guid: a9f90c8200097094791a7c88790119d5, type: 2}
   - {fileID: 11400000, guid: d322531f140628e4785fc05135f6e4ef, type: 2}
-  - {fileID: 11400000, guid: 6de7ec6343bbce243ba2f12cd403df35, type: 2}
-  - {fileID: 11400000, guid: aaa9580419119d04981f948fa93af87f, type: 2}
   - {fileID: 11400000, guid: f159bf43ffe8253499d2ee09dda74092, type: 2}
+  - {fileID: 11400000, guid: 6de7ec6343bbce243ba2f12cd403df35, type: 2}
   OnPhysicsMaterialUpdated:
     m_PersistentCalls:
       m_Calls: []
---- !u!114 &1210546005
+--- !u!114 &1210546006
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -10708,18 +10710,64 @@ MonoBehaviour:
   m_GameObject: {fileID: 1210545997}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c82d411f7012b40459080d77f62e7e48, type: 3}
+  m_Script: {fileID: 11500000, guid: 4256f34e9c0cb7242a2f5b592dc75e7c, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ObjectImpactFeedback
+  m_EditorClassIdentifier: Assembly-CSharp::ObjectImpactVisualFeedback
   targetToPunch: {fileID: 1185773943}
   defaultImpactParticles: {fileID: 994095952}
+--- !u!114 &1210546007
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1210545997}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ea0e2af06a37ceb488a9e0bb42967c76, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ObjectImpactAudioFeedback
   defaultBonkSound: {fileID: 11400000, guid: a1f08af146b170047982a66a3a227f8b, type: 2}
   defaultBinkSound: {fileID: 11400000, guid: 56d68d3fe25b6694aab568135548c55f, type: 2}
   defaultSlideSound: {fileID: 11400000, guid: 8a3c2fdf3613a184786383411bed6f30, type: 2}
   aerialSound: {fileID: 11400000, guid: d8c296457ac257447b14a09d13735059, type: 2}
-  audioFadeSpeed: 3
+--- !u!114 &1210546008
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1210545997}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1a9f7f5c72329845a61ed0311a8141e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ObjectImpactBroadcaster
   minImpactForce: 0
   minImpactForceForBink: 175
+  debounceCooldown: 0.4
+  audioFadeSpeed: 3
+  OnImpact:
+    m_PersistentCalls:
+      m_Calls: []
+  OnSlide:
+    m_PersistentCalls:
+      m_Calls: []
+  OnAir:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &1210546009
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1210545997}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 84a6142aa787f2c4baf0b856e8e35ea6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ObjectImpactTextFeedback
 --- !u!1 &1273445722
 GameObject:
   m_ObjectHideFlags: 0
@@ -15153,4 +15201,3 @@ SceneRoots:
   - {fileID: 840068358}
   - {fileID: 1279310738}
   - {fileID: 544181569}
-  - {fileID: 628799943}
