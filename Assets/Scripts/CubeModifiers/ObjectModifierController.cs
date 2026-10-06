@@ -37,6 +37,13 @@ public class ObjectModifierController : MonoBehaviour
     private float currentPitchScale = 1.0f;
     private bool isSpawnedClone = false;
 
+    // Scoring Aggregates Exposed for External Trackers
+    public int TotalMoneyPerSlideSecond { get; private set; }
+    public int TotalMoneyPerHeightUnit { get; private set; }
+    public int TotalMoneyPerStillnessSecond { get; private set; }
+    public int TotalMoneyPerAirSecond { get; private set; }
+    public int TotalMoneyPerImpact { get; private set; }
+
     // Resolved Audio/Particle Overrides
     public AudioCueSO ActiveBonkSound { get; private set; }
     public AudioCueSO ActiveBinkSound { get; private set; }
@@ -59,6 +66,7 @@ public class ObjectModifierController : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         BASE_MASS = rb.mass;
         targetCollider = GetComponent<Collider>();
+
         if (config == null)
         {
             config = Resources.Load<ModifierConfigSO>("ModifierConfig");
@@ -74,7 +82,6 @@ public class ObjectModifierController : MonoBehaviour
     {
         ReapplyModifiers();
 
-        // Handle auto-spawning if configured via multi modifier and this isn't already a clone
         if (!isSpawnedClone && multiCubeCount > 1)
         {
             SpawnAdditionalObjects();
@@ -122,20 +129,79 @@ public class ObjectModifierController : MonoBehaviour
 
     public void ReapplyModifiers()
     {
-        List<CubeModifier> processedModifiers = new List<CubeModifier>();
-        HashSet<CubeModifier> seenNonStackableModifiers = new HashSet<CubeModifier>();
+        List<CubeModifier> processedModifiers = FilterModifiers(modifiers);
 
-        foreach (var mod in modifiers)
+        ResetStateAndVisuals();
+
+        Transform parentTransform = renderTarget != null ? renderTarget.transform : transform;
+        bool hasBothIceAndSlime = CheckForIceAndSlimeCombo(processedModifiers);
+
+        if (hasBothIceAndSlime && IceSlimePrefab != null)
         {
-            if (mod == null) continue;
-            if (!mod.canStack && !seenNonStackableModifiers.Add(mod)) continue;
-
-            processedModifiers.Add(mod);
+            activeEffectInstances.Add(Instantiate(IceSlimePrefab, parentTransform));
         }
 
+        ModifierLevels levels = ProcessModifiersList(
+            processedModifiers, 
+            parentTransform, 
+            hasBothIceAndSlime, 
+            out CubeMaterialModifer activeMaterialModifier
+        );
+
+        ApplyMaterialAndAudio(activeMaterialModifier);
+        ApplyPhysicalTransformations(levels);
+
+        PhysicsMaterial physMat = ApplyPhysicsMaterial(levels);
+        UpdateJellyMaterialIfPresent(physMat);
+
+        if (TryGetComponent<ObjectImpactAudioFeedback>(out var audioFeedback))
+        {
+            audioFeedback.UpdateAudioLoops();
+        }
+    }
+
+    #region Reapply Modifiers Pipeline Helpers
+
+    private struct ModifierLevels
+    {
+        public int Weight;
+        public int StaticFriction;
+        public int DynamicFriction;
+        public int Bounciness;
+        public int Size;
+        public int Multi;
+
+        public void ClampAll(int min = -7, int max = 7)
+        {
+            Weight = Mathf.Clamp(Weight, min, max);
+            StaticFriction = Mathf.Clamp(StaticFriction, min, max);
+            DynamicFriction = Mathf.Clamp(DynamicFriction, min, max);
+            Bounciness = Mathf.Clamp(Bounciness, min, max);
+            Size = Mathf.Clamp(Size, min, max);
+            Multi = Mathf.Clamp(Multi, min, max);
+        }
+    }
+
+    private List<CubeModifier> FilterModifiers(List<CubeModifier> inputModifiers)
+    {
+        List<CubeModifier> processed = new List<CubeModifier>();
+        HashSet<CubeModifier> seenNonStackable = new HashSet<CubeModifier>();
+
+        foreach (var mod in inputModifiers)
+        {
+            if (mod == null) continue;
+            if (!mod.canStack && !seenNonStackable.Add(mod)) continue;
+
+            processed.Add(mod);
+        }
+
+        return processed;
+    }
+
+    private void ResetStateAndVisuals()
+    {
         if (renderMask != null) renderMask.SetActive(true);
 
-        // Reset visual effects & scale/mass
         foreach (var fx in activeEffectInstances)
         {
             if (fx != null) Destroy(fx);
@@ -145,7 +211,6 @@ public class ObjectModifierController : MonoBehaviour
         transform.localScale = BASE_SCALE;
         if (rb != null) rb.mass = BASE_MASS;
 
-        // Reset defaults
         ActiveBonkSound = null;
         ActiveBinkSound = null;
         ActiveSlideSound = null;
@@ -153,15 +218,21 @@ public class ObjectModifierController : MonoBehaviour
         AreImpactParticlesDisabled = false;
         ActiveLoopingSoundEffects.Clear();
 
-        int highestAudioPriority = int.MinValue;
-        int highestParticlePriority = int.MinValue;
+        // Reset Scoring Aggregates
+        TotalMoneyPerSlideSecond = 0;
+        TotalMoneyPerHeightUnit = 0;
+        TotalMoneyPerStillnessSecond = 0;
+        TotalMoneyPerAirSecond = 0;
+        TotalMoneyPerImpact = 0;
 
         if (targetRenderer != null && defaultMaterial != null)
         {
             targetRenderer.material = defaultMaterial;
         }
+    }
 
-        // Check for Ice and Slime modifiers
+    private bool CheckForIceAndSlimeCombo(List<CubeModifier> processedModifiers)
+    {
         bool hasIce = false;
         bool hasSlime = false;
 
@@ -172,18 +243,20 @@ public class ObjectModifierController : MonoBehaviour
             if (modName.Contains("slime")) hasSlime = true;
         }
 
-        bool hasBothIceAndSlime = hasIce && hasSlime;
-        Transform parentTransform = renderTarget != null ? renderTarget.transform : transform;
+        return hasIce && hasSlime;
+    }
 
-        if (hasBothIceAndSlime && IceSlimePrefab != null)
-        {
-            activeEffectInstances.Add(Instantiate(IceSlimePrefab, parentTransform));
-        }
+    private ModifierLevels ProcessModifiersList(
+        List<CubeModifier> processedModifiers, 
+        Transform parentTransform, 
+        bool hasBothIceAndSlime, 
+        out CubeMaterialModifer activeMaterialModifier)
+    {
+        ModifierLevels levels = new ModifierLevels();
+        activeMaterialModifier = null;
 
-        int totalWeightLevel = 0, totalStaticFrictionLevel = 0, totalDynamicFrictionLevel = 0;
-        int totalBouncinessLevel = 0, totalSizeLevel = 0, totalMultiLevel = 0;
-
-        CubeMaterialModifer activeMaterialModifier = null;
+        int highestAudioPriority = int.MinValue;
+        int highestParticlePriority = int.MinValue;
 
         foreach (var mod in processedModifiers)
         {
@@ -192,44 +265,24 @@ public class ObjectModifierController : MonoBehaviour
                 renderMask.SetActive(false);
             }
 
-            totalWeightLevel += mod.weight;
-            totalStaticFrictionLevel += mod.staticFriction;
-            totalDynamicFrictionLevel += mod.dynamicFriction;
-            totalBouncinessLevel += mod.bounciness;
-            totalSizeLevel += mod.size;
-            totalMultiLevel += mod.multi;
+            // Base Properties
+            levels.Weight += mod.weight;
+            levels.StaticFriction += mod.staticFriction;
+            levels.DynamicFriction += mod.dynamicFriction;
+            levels.Bounciness += mod.bounciness;
+            levels.Size += mod.size;
+            levels.Multi += mod.multi;
+
+            // Scoring Aggregates
+            TotalMoneyPerSlideSecond += mod.moneyPerSlideSecond;
+            TotalMoneyPerHeightUnit += mod.moneyPerHeightUnit;
+            TotalMoneyPerStillnessSecond += mod.moneyPerStillnessSecond;
+            TotalMoneyPerAirSecond += mod.moneyPerAirSecond;
+            TotalMoneyPerImpact += mod.moneyPerImpact;
 
             if (mod is CubeEffectModifier effectMod)
             {
-                if (effectMod.visualEffectPrefab != null)
-                {
-                    string modName = mod.name.ToLower();
-                    bool isIceOrSlime = modName.Contains("ice") || modName.Contains("slime");
-
-                    if (!hasBothIceAndSlime || !isIceOrSlime)
-                    {
-                        activeEffectInstances.Add(Instantiate(effectMod.visualEffectPrefab, parentTransform));
-                    }
-                }
-
-                if (effectMod.loopingSoundEffect != null)
-                {
-                    ActiveLoopingSoundEffects.Add(effectMod.loopingSoundEffect);
-                }
-
-                if (effectMod.impactParticlePriority >= highestParticlePriority)
-                {
-                    highestParticlePriority = effectMod.impactParticlePriority;
-                    AreImpactParticlesDisabled = effectMod.disableImpactParticles;
-
-                    if (effectMod.impactParticlePrefab != null)
-                    {
-                        if (effectMod.impactParticlePrefab.TryGetComponent(out ParticleSystem ps))
-                        {
-                            CustomImpactParticlePrefab = ps;
-                        }
-                    }
-                }
+                ProcessEffectModifier(effectMod, parentTransform, hasBothIceAndSlime, ref highestParticlePriority);
             }
 
             if (mod is CubeMaterialModifer matMod)
@@ -237,75 +290,111 @@ public class ObjectModifierController : MonoBehaviour
                 activeMaterialModifier = matMod;
             }
 
-            bool hasAudioOverride = mod.bonkSoundOverride != null || mod.binkSoundOverride != null || mod.slideSoundOverride != null;
-            if (hasAudioOverride && mod.soundOverridePriority >= highestAudioPriority)
-            {
-                highestAudioPriority = mod.soundOverridePriority;
-                if (mod.bonkSoundOverride != null) ActiveBonkSound = mod.bonkSoundOverride;
-                if (mod.binkSoundOverride != null) ActiveBinkSound = mod.binkSoundOverride;
-                if (mod.slideSoundOverride != null) ActiveSlideSound = mod.slideSoundOverride;
-            }
+            ProcessAudioOverrides(mod, ref highestAudioPriority);
         }
 
-        // Clamp levels to [-7, 7]
-        totalWeightLevel = Mathf.Clamp(totalWeightLevel, -7, 7);
-        totalStaticFrictionLevel = Mathf.Clamp(totalStaticFrictionLevel, -7, 7);
-        totalDynamicFrictionLevel = Mathf.Clamp(totalDynamicFrictionLevel, -7, 7);
-        totalBouncinessLevel = Mathf.Clamp(totalBouncinessLevel, -7, 7);
-        totalSizeLevel = Mathf.Clamp(totalSizeLevel, -7, 7);
-        totalMultiLevel = Mathf.Clamp(totalMultiLevel, -7, 7);
+        levels.ClampAll(-7, 7);
+        return levels;
+    }
 
-        negativeFrictionBoost = (totalDynamicFrictionLevel < 0) ? Mathf.Abs(totalDynamicFrictionLevel) * 0.09f : 0f;
-
-        if (activeMaterialModifier != null)
+    private void ProcessEffectModifier(
+        CubeEffectModifier effectMod, 
+        Transform parentTransform, 
+        bool hasBothIceAndSlime, 
+        ref int highestParticlePriority)
+    {
+        if (effectMod.visualEffectPrefab != null)
         {
-            if (targetRenderer != null && activeMaterialModifier.material != null)
-            {
-                targetRenderer.material = activeMaterialModifier.material;
-            }
+            string modName = effectMod.name.ToLower();
+            bool isIceOrSlime = modName.Contains("ice") || modName.Contains("slime");
 
-            if (ActiveBonkSound == null && activeMaterialModifier.bonkSound != null)
+            if (!hasBothIceAndSlime || !isIceOrSlime)
             {
-                ActiveBonkSound = activeMaterialModifier.bonkSound;
-            }
-            if (ActiveBinkSound == null && activeMaterialModifier.binkSound != null)
-            {
-                ActiveBinkSound = activeMaterialModifier.binkSound;
+                activeEffectInstances.Add(Instantiate(effectMod.visualEffectPrefab, parentTransform));
             }
         }
 
-        multiCubeCount = Mathf.Max(1, 1 + totalMultiLevel);
+        if (effectMod.loopingSoundEffect != null)
+        {
+            ActiveLoopingSoundEffects.Add(effectMod.loopingSoundEffect);
+        }
+
+        if (effectMod.impactParticlePriority >= highestParticlePriority)
+        {
+            highestParticlePriority = effectMod.impactParticlePriority;
+            AreImpactParticlesDisabled = effectMod.disableImpactParticles;
+
+            if (effectMod.impactParticlePrefab != null && 
+                effectMod.impactParticlePrefab.TryGetComponent(out ParticleSystem ps))
+            {
+                CustomImpactParticlePrefab = ps;
+            }
+        }
+    }
+
+    private void ProcessAudioOverrides(CubeModifier mod, ref int highestAudioPriority)
+    {
+        bool hasAudioOverride = mod.bonkSoundOverride != null || mod.binkSoundOverride != null || mod.slideSoundOverride != null;
+        if (hasAudioOverride && mod.soundOverridePriority >= highestAudioPriority)
+        {
+            highestAudioPriority = mod.soundOverridePriority;
+            if (mod.bonkSoundOverride != null) ActiveBonkSound = mod.bonkSoundOverride;
+            if (mod.binkSoundOverride != null) ActiveBinkSound = mod.binkSoundOverride;
+            if (mod.slideSoundOverride != null) ActiveSlideSound = mod.slideSoundOverride;
+        }
+    }
+
+    private void ApplyMaterialAndAudio(CubeMaterialModifer activeMaterialModifier)
+    {
+        if (activeMaterialModifier == null) return;
+
+        if (targetRenderer != null && activeMaterialModifier.material != null)
+        {
+            targetRenderer.material = activeMaterialModifier.material;
+        }
+
+        if (ActiveBonkSound == null && activeMaterialModifier.bonkSound != null)
+        {
+            ActiveBonkSound = activeMaterialModifier.bonkSound;
+        }
+        if (ActiveBinkSound == null && activeMaterialModifier.binkSound != null)
+        {
+            ActiveBinkSound = activeMaterialModifier.binkSound;
+        }
+    }
+
+    private void ApplyPhysicalTransformations(ModifierLevels levels)
+    {
+        negativeFrictionBoost = (levels.DynamicFriction < 0) ? Mathf.Abs(levels.DynamicFriction) * 0.09f : 0f;
+        multiCubeCount = Mathf.Max(1, 1 + levels.Multi);
 
         if (rb != null)
         {
-            rb.mass = Mathf.Clamp(BASE_MASS * Mathf.Pow(1.5f, totalWeightLevel), 0.05f, 15f);
+            rb.mass = Mathf.Clamp(BASE_MASS * Mathf.Pow(1.5f, levels.Weight), 0.05f, 15f);
         }
 
-        transform.localScale = BASE_SCALE * Mathf.Pow(1.2f, totalSizeLevel);
-        currentPitchScale = Mathf.Pow(1.2f, -totalSizeLevel);
-
-        PhysicsMaterial physMat = null;
-        if (targetCollider != null)
-        {
-            physMat = new PhysicsMaterial("DynamicPhysicsMat")
-            {
-                staticFriction = Mathf.Clamp(BASE_STATIC_FRICTION + (totalStaticFrictionLevel * 0.14f), 0f, 1.0f),
-                dynamicFriction = Mathf.Clamp(BASE_DYNAMIC_FRICTION + (totalDynamicFrictionLevel * 0.14f), 0f, 1.0f),
-                bounciness = Mathf.Clamp(BASE_BOUNCINESS + (totalBouncinessLevel * 0.1f), 0.01f, 0.99f),
-                frictionCombine = PhysicsMaterialCombine.Average,
-                bounceCombine = PhysicsMaterialCombine.Maximum
-            };
-            targetCollider.material = physMat;
-        }
-
-        UpdateJellyMaterialIfPresent(physMat);
-
-        var audioFeedback = GetComponent<ObjectImpactAudioFeedback>();
-        if (audioFeedback != null)
-        {
-            audioFeedback.UpdateAudioLoops();
-        }
+        transform.localScale = BASE_SCALE * Mathf.Pow(1.2f, levels.Size);
+        currentPitchScale = Mathf.Pow(1.2f, -levels.Size);
     }
+
+    private PhysicsMaterial ApplyPhysicsMaterial(ModifierLevels levels)
+    {
+        if (targetCollider == null) return null;
+
+        PhysicsMaterial physMat = new PhysicsMaterial("DynamicPhysicsMat")
+        {
+            staticFriction = Mathf.Clamp(BASE_STATIC_FRICTION + (levels.StaticFriction * 0.14f), 0f, 1.0f),
+            dynamicFriction = Mathf.Clamp(BASE_DYNAMIC_FRICTION + (levels.DynamicFriction * 0.14f), 0f, 1.0f),
+            bounciness = Mathf.Clamp(BASE_BOUNCINESS + (levels.Bounciness * 0.1f), 0.01f, 0.99f),
+            frictionCombine = PhysicsMaterialCombine.Average,
+            bounceCombine = PhysicsMaterialCombine.Maximum
+        };
+
+        targetCollider.material = physMat;
+        return physMat;
+    }
+
+    #endregion
 
     public List<GameObject> SpawnAdditionalObjects()
     {
@@ -329,11 +418,10 @@ public class ObjectModifierController : MonoBehaviour
             Vector3 offset = direction * Random.Range(minRadius, maxRadius);
             GameObject newObject = Instantiate(gameObject, transform.position + offset, Quaternion.identity);
 
-            // Configure spawned object's modifier controller
             var newModifierController = newObject.GetComponent<ObjectModifierController>();
             if (newModifierController != null)
             {
-                newModifierController.isSpawnedClone = true; // Prevents recursive spawning loop
+                newModifierController.isSpawnedClone = true;
                 newModifierController.CleanUpClonedFX();
                 newModifierController.ClearModifiers();
 
@@ -341,7 +429,7 @@ public class ObjectModifierController : MonoBehaviour
                 {
                     if (mod == null) continue;
                     CubeModifier modInstance = Instantiate(mod);
-                    modInstance.multi = 0; // Reset multi count on clones
+                    modInstance.multi = 0;
                     newModifierController.AddModifier(modInstance);
                 }
             }
