@@ -2,7 +2,7 @@ using UnityEngine;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(ObjectImpactBroadcaster))]
-public class ObjectImpactTextFeedback : MonoBehaviour
+public class ObjectImpactScoreFeedback : MonoBehaviour
 {
     private ObjectImpactBroadcaster broadcaster;
     private TrackedTextHandle textHandle;

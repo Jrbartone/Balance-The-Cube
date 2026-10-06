@@ -10695,8 +10695,6 @@ MonoBehaviour:
   renderMask: {fileID: 1827568156}
   trackSpawnedObjectsWithCamera: 1
   modifiers:
-  - {fileID: 11400000, guid: d322531f140628e4785fc05135f6e4ef, type: 2}
-  - {fileID: 11400000, guid: f159bf43ffe8253499d2ee09dda74092, type: 2}
   - {fileID: 11400000, guid: 6de7ec6343bbce243ba2f12cd403df35, type: 2}
   OnPhysicsMaterialUpdated:
     m_PersistentCalls:
@@ -11038,6 +11036,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ObjectImpactFeedback
   targetToPunch: {fileID: 1279310734}
   defaultImpactParticles: {fileID: 0}
+  modifierController: {fileID: 0}
   defaultBonkSound: {fileID: 11400000, guid: 3ad999a4d81fcf841b9faa7c9bc0c238, type: 2}
   defaultBinkSound: {fileID: 11400000, guid: 3ad999a4d81fcf841b9faa7c9bc0c238, type: 2}
   defaultSlideSound: {fileID: 11400000, guid: 8a3c2fdf3613a184786383411bed6f30, type: 2}
@@ -11045,6 +11044,18 @@ MonoBehaviour:
   audioFadeSpeed: 5
   minImpactForce: 0
   minImpactForceForBink: 175
+  rb: {fileID: 0}
+  jellyCubeLayer: 0
+  exclusionMask: 0
+  targetSlideVolume: 0
+  currentSlideVolume: 0
+  targetAerialVolume: 0
+  currentAerialVolume: 0
+  nextAllowedImpactTime: 0
+  spawnedCustomImpactParticles: {fileID: 0}
+  lastCustomPrefabReference: {fileID: 0}
+  textHandle: {fileID: 0}
+  timer: 0
 --- !u!114 &1279310741
 MonoBehaviour:
   m_ObjectHideFlags: 0

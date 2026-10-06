@@ -17,9 +17,6 @@ public class ObjectModifierController : MonoBehaviour
     [Header("Modifiers")]
     [SerializeField] private List<CubeModifier> modifiers = new List<CubeModifier>();
 
-    [HideInInspector]
-    public UnityEvent<PhysicsMaterial> OnPhysicsMaterialUpdated;
-
     // Reset Constants
     private float BASE_MASS = 1.0f;
     private const float BASE_STATIC_FRICTION = 0f;
@@ -302,7 +299,12 @@ public class ObjectModifierController : MonoBehaviour
         }
 
         UpdateJellyMaterialIfPresent(physMat);
-        OnPhysicsMaterialUpdated?.Invoke(physMat);
+
+        var audioFeedback = GetComponent<ObjectImpactAudioFeedback>();
+        if (audioFeedback != null)
+        {
+            audioFeedback.UpdateAudioLoops();
+        }
     }
 
     public List<GameObject> SpawnAdditionalObjects()

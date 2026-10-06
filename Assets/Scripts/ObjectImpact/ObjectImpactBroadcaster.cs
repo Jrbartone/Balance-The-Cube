@@ -13,7 +13,7 @@ public class ObjectImpactBroadcaster : MonoBehaviour
     [Header("Impact FX Tuning")]
     [SerializeField] private float minImpactForce = 20f;
     [SerializeField] private float minImpactForceForBink = 175f;
-     [HideInInspector]
+    [HideInInspector]
     [SerializeField] private float debounceCooldown = 0.4f;
 
     [Header("Slide & Aerial Audio Smoothing")]
@@ -30,7 +30,7 @@ public class ObjectImpactBroadcaster : MonoBehaviour
     private ObjectModifierController modifierController;
 
     private const float MAX_SLIDE_VELOCITY = 5f;
-    private const float MIN_SLIDE_VELOCITY = 1.5f;
+    private const float MIN_SLIDE_VELOCITY = .5f;
 
     private float nextAllowedImpactTime;
     private float currentSlideVolume;
@@ -57,10 +57,22 @@ public class ObjectImpactBroadcaster : MonoBehaviour
     private void Update()
     {
         float velocityMag = rb != null ? rb.linearVelocity.magnitude : 0f;
+        
+        // Horizontal magnitude (ignoring Y component) for sliding
+        Vector3 horizontalVelocity = rb != null ? new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z) : Vector3.zero;
+        float horizontalVelocityMag = horizontalVelocity.magnitude;
+
         bool isColliding = CheckIfColliding();
 
-        float targetSlideVolume = (isColliding && velocityMag > MIN_SLIDE_VELOCITY) ? Mathf.Clamp01(velocityMag / MAX_SLIDE_VELOCITY) : 0f;
-        float targetAerialVolume = (!isColliding && velocityMag > MIN_SLIDE_VELOCITY) ? Mathf.Clamp01(velocityMag / MAX_SLIDE_VELOCITY) : 0f;
+        // Slide now checks horizontal speed (X/Z only)
+        float targetSlideVolume = (isColliding && horizontalVelocityMag > MIN_SLIDE_VELOCITY) 
+            ? Mathf.Clamp01(horizontalVelocityMag / MAX_SLIDE_VELOCITY) 
+            : 0f;
+
+        // Air continues to track full 3D magnitude (includes fall/jump speed)
+        float targetAerialVolume = (!isColliding && velocityMag > MIN_SLIDE_VELOCITY) 
+            ? Mathf.Clamp01(velocityMag / MAX_SLIDE_VELOCITY) 
+            : 0f;
 
         currentSlideVolume = Mathf.MoveTowards(currentSlideVolume, targetSlideVolume, audioFadeSpeed * Time.deltaTime);
         currentAerialVolume = Mathf.MoveTowards(currentAerialVolume, targetAerialVolume, audioFadeSpeed * Time.deltaTime);

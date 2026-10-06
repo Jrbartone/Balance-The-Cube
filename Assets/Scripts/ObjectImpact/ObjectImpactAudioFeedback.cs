@@ -38,11 +38,6 @@ public class ObjectImpactAudioFeedback : MonoBehaviour
         {
             modifierController = broadcaster.ModifierController;
         }
-
-        if (modifierController != null)
-        {
-            modifierController.OnPhysicsMaterialUpdated.AddListener(OnPhysicsMaterialUpdated);
-        }
     }
 
     private void OnDisable()
@@ -52,11 +47,6 @@ public class ObjectImpactAudioFeedback : MonoBehaviour
             broadcaster.OnImpact.RemoveListener(OnImpactHandled);
             broadcaster.OnSlide.RemoveListener(OnSlideUpdated);
             broadcaster.OnAir.RemoveListener(OnAirUpdated);
-        }
-
-        if (modifierController != null)
-        {
-            modifierController.OnPhysicsMaterialUpdated.RemoveListener(OnPhysicsMaterialUpdated);
         }
     }
 
