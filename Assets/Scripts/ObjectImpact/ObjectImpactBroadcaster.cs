@@ -9,6 +9,7 @@ public class ObjectImpactBroadcaster : MonoBehaviour
 
     [System.Serializable] public class ImpactEvent : UnityEvent<Collision, ImpactType> { }
     [System.Serializable] public class AudioStateEvent : UnityEvent<float> { }
+    [System.Serializable] public class StillnessEvent : UnityEvent { }
 
     [Header("Impact FX Tuning")]
     [SerializeField] private float minImpactForce = 20f;
@@ -25,6 +26,8 @@ public class ObjectImpactBroadcaster : MonoBehaviour
     public AudioStateEvent OnSlide = new AudioStateEvent(); // Sends slide volume (0 to 1)
     [HideInInspector]
     public AudioStateEvent OnAir = new AudioStateEvent();   // Sends air volume (0 to 1)
+    [HideInInspector]
+    public StillnessEvent OnStillness = new StillnessEvent();   // Fires when the object is still
 
     private Rigidbody rb;
     private ObjectModifierController modifierController;
@@ -77,8 +80,15 @@ public class ObjectImpactBroadcaster : MonoBehaviour
         currentSlideVolume = Mathf.MoveTowards(currentSlideVolume, targetSlideVolume, audioFadeSpeed * Time.deltaTime);
         currentAerialVolume = Mathf.MoveTowards(currentAerialVolume, targetAerialVolume, audioFadeSpeed * Time.deltaTime);
 
-        OnSlide?.Invoke(currentSlideVolume);
         OnAir?.Invoke(currentAerialVolume);
+        if (isColliding && horizontalVelocityMag >= MIN_SLIDE_VELOCITY)
+        {
+            OnSlide?.Invoke(currentSlideVolume);
+        }
+        else if (isColliding && rb.linearVelocity.magnitude < 1.5f)
+        {
+            OnStillness?.Invoke();
+        }
     }
 
     private void OnCollisionEnter(Collision collision)
