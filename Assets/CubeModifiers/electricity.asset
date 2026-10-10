@@ -18,6 +18,18 @@ MonoBehaviour:
   bounciness: 0
   size: 0
   multi: 0
+  handAttraction: 0
+  objectAttraction: 0
+  centerAttraction: 0
+  fieldSize: 0
+  willDamageHand: 0
+  handDamageAmount: 0
+  pointsPerSlideSecond: 0
+  pointsPerHeightUnit: 0
+  pointsPerStillnessSecond: 5
+  pointsPerAirSecond: 0
+  pointsPerImpact: 200
+  canStack: 1
   disableRenderMask: 0
   bonkSoundOverride: {fileID: 0}
   binkSoundOverride: {fileID: 0}

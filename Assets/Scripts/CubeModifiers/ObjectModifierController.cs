@@ -38,11 +38,11 @@ public class ObjectModifierController : MonoBehaviour
     private bool isSpawnedClone = false;
 
     // Scoring Aggregates Exposed for External Trackers
-    public int TotalMoneyPerSlideSecond { get; private set; }
-    public int TotalMoneyPerHeightUnit { get; private set; }
-    public int TotalMoneyPerStillnessSecond { get; private set; }
-    public int TotalMoneyPerAirSecond { get; private set; }
-    public int TotalMoneyPerImpact { get; private set; }
+    public int TotalPointsPerSlideSecond { get; private set; }
+    public int TotalPointsPerHeightUnit { get; private set; }
+    public int TotalPointsPerStillnessSecond { get; private set; }
+    public int TotalPointsPerAirSecond { get; private set; }
+    public int TotalPointsPerImpact { get; private set; }
 
     // Resolved Audio/Particle Overrides
     public AudioCueSO ActiveBonkSound { get; private set; }
@@ -219,11 +219,11 @@ public class ObjectModifierController : MonoBehaviour
         ActiveLoopingSoundEffects.Clear();
 
         // Reset Scoring Aggregates
-        TotalMoneyPerSlideSecond = 0;
-        TotalMoneyPerHeightUnit = 0;
-        TotalMoneyPerStillnessSecond = 0;
-        TotalMoneyPerAirSecond = 0;
-        TotalMoneyPerImpact = 0;
+        TotalPointsPerSlideSecond = 0;
+        TotalPointsPerHeightUnit = 0;
+        TotalPointsPerStillnessSecond = 0;
+        TotalPointsPerAirSecond = 0;
+        TotalPointsPerImpact = 0;
 
         if (targetRenderer != null && defaultMaterial != null)
         {
@@ -274,11 +274,11 @@ public class ObjectModifierController : MonoBehaviour
             levels.Multi += mod.multi;
 
             // Scoring Aggregates
-            TotalMoneyPerSlideSecond += mod.moneyPerSlideSecond;
-            TotalMoneyPerHeightUnit += mod.moneyPerHeightUnit;
-            TotalMoneyPerStillnessSecond += mod.moneyPerStillnessSecond;
-            TotalMoneyPerAirSecond += mod.moneyPerAirSecond;
-            TotalMoneyPerImpact += mod.moneyPerImpact;
+            TotalPointsPerSlideSecond += mod.pointsPerSlideSecond;
+            TotalPointsPerHeightUnit += mod.pointsPerHeightUnit;
+            TotalPointsPerStillnessSecond += mod.pointsPerStillnessSecond;
+            TotalPointsPerAirSecond += mod.pointsPerAirSecond;
+            TotalPointsPerImpact += mod.pointsPerImpact;
 
             if (mod is CubeEffectModifier effectMod)
             {

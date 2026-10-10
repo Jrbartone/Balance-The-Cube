@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6e181f742a6070943b365c0fa0386cd7, type: 3}
-  m_Name: fire
+  m_Name: defaultScoring
   m_EditorClassIdentifier: Assembly-CSharp::CubeEffectModifier
   weight: 0
   staticFriction: 0
   dynamicFriction: 0
-  bounciness: 7
+  bounciness: 0
   size: 0
   multi: 0
   handAttraction: 0
@@ -24,19 +24,19 @@ MonoBehaviour:
   fieldSize: 0
   willDamageHand: 0
   handDamageAmount: 0
-  moneyPerSlideSecond: 0
-  moneyPerHeightUnit: 0
-  moneyPerStillnessSecond: 0
-  moneyPerAirSecond: 0
-  moneyPerImpact: 0
+  pointsPerSlideSecond: 0
+  pointsPerHeightUnit: 0
+  pointsPerStillnessSecond: 5
+  pointsPerAirSecond: 0
+  pointsPerImpact: 200
   canStack: 1
   disableRenderMask: 0
   bonkSoundOverride: {fileID: 0}
   binkSoundOverride: {fileID: 0}
   slideSoundOverride: {fileID: 0}
   soundOverridePriority: 0
-  visualEffectPrefab: {fileID: 4130882034144767873, guid: 6dc4b246d95972b459b3c84f2c926331, type: 3}
+  visualEffectPrefab: {fileID: 0}
   impactParticlePrefab: {fileID: 0}
   disableImpactParticles: 0
   impactParticlePriority: 0
-  loopingSoundEffect: {fileID: 11400000, guid: 0a73efeb1b87fb54a8b3350008ba5620, type: 2}
+  loopingSoundEffect: {fileID: 0}

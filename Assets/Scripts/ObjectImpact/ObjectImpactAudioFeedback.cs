@@ -10,6 +10,7 @@ public class ObjectImpactAudioFeedback : MonoBehaviour
     [SerializeField] private AudioCueSO defaultBinkSound;
     [SerializeField] private AudioCueSO defaultSlideSound;
     [SerializeField] private AudioCueSO aerialSound;
+    [SerializeField] private float audioFadeSpeed = 5f; // Speed at which audio fades in/out
 
     private ObjectImpactBroadcaster broadcaster;
     private ObjectModifierController modifierController;
@@ -17,6 +18,12 @@ public class ObjectImpactAudioFeedback : MonoBehaviour
     private TrackedAudioInstance slideAudioInstance;
     private TrackedAudioInstance aerialAudioInstance;
     private readonly List<TrackedAudioInstance> activeLoopingAudioInstances = new List<TrackedAudioInstance>();
+
+    // Current and target volumes for smooth fading
+    private float currentSlideVolume;
+    private float targetSlideVolume;
+    private float currentAerialVolume;
+    private float targetAerialVolume;
 
     private void Awake()
     {
@@ -29,11 +36,10 @@ public class ObjectImpactAudioFeedback : MonoBehaviour
         if (broadcaster != null)
         {
             broadcaster.OnImpact.AddListener(OnImpactHandled);
-            broadcaster.OnSlide.AddListener(OnSlideUpdated);
-            broadcaster.OnAir.AddListener(OnAirUpdated);
+            broadcaster.OnStateTransition.AddListener(OnStateTransition);
+            broadcaster.OnStateTick.AddListener(OnStateTick);
         }
 
-        // Re-check modifierController in case of Awake initialization order differences
         if (modifierController == null && broadcaster != null)
         {
             modifierController = broadcaster.ModifierController;
@@ -45,8 +51,8 @@ public class ObjectImpactAudioFeedback : MonoBehaviour
         if (broadcaster != null)
         {
             broadcaster.OnImpact.RemoveListener(OnImpactHandled);
-            broadcaster.OnSlide.RemoveListener(OnSlideUpdated);
-            broadcaster.OnAir.RemoveListener(OnAirUpdated);
+            broadcaster.OnStateTransition.RemoveListener(OnStateTransition);
+            broadcaster.OnStateTick.RemoveListener(OnStateTick);
         }
     }
 
@@ -57,8 +63,17 @@ public class ObjectImpactAudioFeedback : MonoBehaviour
 
     private void Update()
     {
-        // Keep active looping sound effect parameters/pitch updated each frame
         float pitchScale = modifierController != null ? modifierController.CurrentPitchScale : 1.0f;
+
+        // Smoothly fade slide and aerial volumes toward their targets
+        currentSlideVolume = Mathf.MoveTowards(currentSlideVolume, targetSlideVolume, audioFadeSpeed * Time.deltaTime);
+        currentAerialVolume = Mathf.MoveTowards(currentAerialVolume, targetAerialVolume, audioFadeSpeed * Time.deltaTime);
+
+        // Apply parameters to persistent loop instances
+        slideAudioInstance?.UpdateParameters(currentSlideVolume, pitchScale);
+        aerialAudioInstance?.UpdateParameters(currentAerialVolume, pitchScale);
+
+        // Update other custom looping audio effect parameters
         for (int i = 0; i < activeLoopingAudioInstances.Count; i++)
         {
             activeLoopingAudioInstances[i]?.UpdateParameters(1.0f, pitchScale);
@@ -70,16 +85,43 @@ public class ObjectImpactAudioFeedback : MonoBehaviour
         UpdateAudioLoops();
     }
 
-    private void OnSlideUpdated(float volume)
+    private void OnStateTransition(ObjectImpactBroadcaster.MovementState oldState, ObjectImpactBroadcaster.MovementState newState, float finalTimeInOldState)
     {
-        float pitchScale = modifierController != null ? modifierController.CurrentPitchScale : 1.0f;
-        slideAudioInstance?.UpdateParameters(volume, pitchScale);
+        // Set target volumes to 0 when leaving states
+        if (oldState == ObjectImpactBroadcaster.MovementState.Slide)
+        {
+            targetSlideVolume = 0f;
+        }
+        else if (oldState == ObjectImpactBroadcaster.MovementState.Air)
+        {
+            targetAerialVolume = 0f;
+        }
+
+        if (newState == ObjectImpactBroadcaster.MovementState.None)
+        {
+            targetSlideVolume = 0f;
+            targetAerialVolume = 0f;
+        }
     }
 
-    private void OnAirUpdated(float volume)
+    private void OnStateTick(ObjectImpactBroadcaster.MovementState state, float timeInState, float volume)
     {
-        float pitchScale = modifierController != null ? modifierController.CurrentPitchScale : 1.0f;
-        aerialAudioInstance?.UpdateParameters(volume, pitchScale);
+        // Set target volumes to full when actively in the state
+        if (state == ObjectImpactBroadcaster.MovementState.Slide)
+        {
+            targetSlideVolume = volume;
+            targetAerialVolume = 0f;
+        }
+        else if (state == ObjectImpactBroadcaster.MovementState.Air)
+        {
+            targetAerialVolume = volume;
+            targetSlideVolume = 0f;
+        }
+        else
+        {
+            targetSlideVolume = 0f;
+            targetAerialVolume = 0f;
+        }
     }
 
     private void OnImpactHandled(Collision collision, ObjectImpactBroadcaster.ImpactType impactType)
@@ -112,6 +154,7 @@ public class ObjectImpactAudioFeedback : MonoBehaviour
     {
         if (AudioManager.Instance == null) return;
 
+        // Clean up old instances if resetting
         slideAudioInstance?.StopAndRelease();
         slideAudioInstance = null;
 
@@ -121,12 +164,22 @@ public class ObjectImpactAudioFeedback : MonoBehaviour
         foreach (var loop in activeLoopingAudioInstances) loop?.StopAndRelease();
         activeLoopingAudioInstances.Clear();
 
+        // Reset volumes
+        currentSlideVolume = 0f;
+        targetSlideVolume = 0f;
+        currentAerialVolume = 0f;
+        targetAerialVolume = 0f;
+
         AudioCueSO activeSlide = (modifierController != null && modifierController.ActiveSlideSound != null) 
             ? modifierController.ActiveSlideSound 
             : defaultSlideSound;
 
+        // Initialize persistent loop instances starting at volume 0
         if (activeSlide != null) slideAudioInstance = AudioManager.Instance.PlayTrackedLoop(activeSlide, transform);
         if (aerialSound != null) aerialAudioInstance = AudioManager.Instance.PlayTrackedLoop(aerialSound, transform);
+
+        if (slideAudioInstance != null) slideAudioInstance.UpdateParameters(0f, 1f);
+        if (aerialAudioInstance != null) aerialAudioInstance.UpdateParameters(0f, 1f);
 
         if (modifierController != null)
         {

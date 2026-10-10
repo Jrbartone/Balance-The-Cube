@@ -6,7 +6,17 @@ using DG.Tweening;
 
 public class FloatingTextSpawner : MonoBehaviour
 {
-    public static FloatingTextSpawner Instance { get; private set; }
+
+    public enum SpawnerType
+    {
+        Cube,
+        Score
+    }
+
+    public SpawnerType spawnerType;
+    public static FloatingTextSpawner CubeInstance { get; private set; }
+    public static FloatingTextSpawner ScoreInstance { get; private set; }
+
 
     [Header("Prefab & Hierarchy")]
     [SerializeField] private GameObject floatingTextPrefab;
@@ -51,12 +61,17 @@ public class FloatingTextSpawner : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance != null && Instance != this)
+        // Assign the instances based on the spawner type
+        if (spawnerType == SpawnerType.Cube)
         {
-            Destroy(gameObject);
-            return;
+            if (CubeInstance == null) CubeInstance = this;
+            else Destroy(gameObject);
         }
-        Instance = this;
+        else if (spawnerType == SpawnerType.Score)
+        {
+            if (ScoreInstance == null) ScoreInstance = this;
+            else Destroy(gameObject);
+        }
         DontDestroyOnLoad(gameObject);
     }
 

@@ -21,11 +21,11 @@ public abstract class CubeModifier : ScriptableObject
     [Range(-7, 7)] public int handDamageAmount = 0;
 
     [Header("Scoring Properties")]
-    public int moneyPerSlideSecond = 0;
-    public int moneyPerHeightUnit = 0;
-    public int moneyPerStillnessSecond = 0;
-    public int moneyPerAirSecond = 0;
-    public int moneyPerImpact = 0;
+    public int pointsPerSlideSecond = 0;
+    public int pointsPerHeightUnit = 0;
+    public int pointsPerStillnessSecond = 0;
+    public int pointsPerAirSecond = 0;
+    public int pointsPerImpact = 0;
 
     [Header("Can stack?")]
     public bool canStack = true;
