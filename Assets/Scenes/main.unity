@@ -5157,6 +5157,7 @@ GameObject:
   m_Component:
   - component: {fileID: 475817980}
   - component: {fileID: 475817982}
+  - component: {fileID: 475817984}
   - component: {fileID: 475817981}
   - component: {fileID: 475817983}
   m_Layer: 5
@@ -5300,6 +5301,21 @@ MonoBehaviour:
   timerText: {fileID: 475817981}
   punchScale: 0.2
   punchDuration: 0.2
+--- !u!114 &475817984
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 475817979}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cae8d050f85827640a6807d914a74378, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SubtleCanvasRotationFollower
+  targetObject: {fileID: 657867285}
+  movementScale: 0.5
+  lerpSpeed: 5
 --- !u!1 &482411997
 GameObject:
   m_ObjectHideFlags: 0
@@ -6969,6 +6985,7 @@ GameObject:
   - component: {fileID: 710201710}
   - component: {fileID: 710201706}
   - component: {fileID: 710201709}
+  - component: {fileID: 710201711}
   m_Layer: 5
   m_Name: ScoreGoal
   m_TagString: Untagged
@@ -7125,6 +7142,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TMPTextShake
   maxShakeSpeed: 40
+--- !u!114 &710201711
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 710201704}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cae8d050f85827640a6807d914a74378, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SubtleCanvasRotationFollower
+  targetObject: {fileID: 657867285}
+  movementScale: 0.5
+  lerpSpeed: 5
 --- !u!1 &710760115
 GameObject:
   m_ObjectHideFlags: 0
@@ -12839,28 +12871,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c82d411f7012b40459080d77f62e7e48, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ObjectImpactFeedback
-  targetToPunch: {fileID: 1279310734}
-  defaultImpactParticles: {fileID: 0}
-  modifierController: {fileID: 0}
-  defaultBonkSound: {fileID: 11400000, guid: 3ad999a4d81fcf841b9faa7c9bc0c238, type: 2}
-  defaultBinkSound: {fileID: 11400000, guid: 3ad999a4d81fcf841b9faa7c9bc0c238, type: 2}
-  defaultSlideSound: {fileID: 11400000, guid: 8a3c2fdf3613a184786383411bed6f30, type: 2}
-  aerialSound: {fileID: 11400000, guid: d8c296457ac257447b14a09d13735059, type: 2}
-  audioFadeSpeed: 5
-  minImpactForce: 0
-  minImpactForceForBink: 175
-  rb: {fileID: 0}
-  jellyCubeLayer: 0
-  exclusionMask: 0
-  targetSlideVolume: 0
-  currentSlideVolume: 0
-  targetAerialVolume: 0
-  currentAerialVolume: 0
-  nextAllowedImpactTime: 0
-  spawnedCustomImpactParticles: {fileID: 0}
-  lastCustomPrefabReference: {fileID: 0}
-  textHandle: {fileID: 0}
-  timer: 0
 --- !u!114 &1279310741
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -13323,6 +13333,7 @@ GameObject:
   - component: {fileID: 1456879830}
   - component: {fileID: 1456879831}
   - component: {fileID: 1456879829}
+  - component: {fileID: 1456879832}
   m_Layer: 5
   m_Name: Score
   m_TagString: Untagged
@@ -13462,6 +13473,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TMPTextShake
   maxShakeSpeed: 40
+--- !u!114 &1456879832
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1456879827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cae8d050f85827640a6807d914a74378, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SubtleCanvasRotationFollower
+  targetObject: {fileID: 657867285}
+  movementScale: 0.5
+  lerpSpeed: 5
 --- !u!1 &1528365174
 GameObject:
   m_ObjectHideFlags: 0

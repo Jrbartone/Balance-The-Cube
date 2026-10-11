@@ -39,7 +39,7 @@ public class ObjectImpactBroadcaster : MonoBehaviour
 
     private const float MAX_SLIDE_VELOCITY = 5f;
     private const float MIN_SLIDE_VELOCITY = 0.5f;
-    private const float MAX_SLIDE_VELOCITY_Y = 2f;
+    private const float MAX_SLIDE_VELOCITY_Y = 4f;
     private const float MAX_STILLNESS_ANGULAR_VELOCITY = 0.1f;
 
     private float nextAllowedImpactTime;
