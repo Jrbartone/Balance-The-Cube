@@ -8,11 +8,11 @@ public class TMPSTwitchEffect : MonoBehaviour
 
     [Header("Position Twitch")]
     [Tooltip("Maximum pixel distance a letter can jump away from its resting spot.")]
-    [SerializeField] private float twitchIntensity = 1.5f;
+    [SerializeField] private float twitchIntensity = 0.005f;
 
     [Header("Rotation Twitch")]
     [Tooltip("Maximum degrees a letter can rotate clockwise or counter-clockwise.")]
-    [SerializeField] private float maxRotationAngle = 5.0f;
+    [SerializeField] private float maxRotationAngle = .01f;
 
     [Header("Timing")]
     [Tooltip("Minimum time (in seconds) a character waits before twitching.")]

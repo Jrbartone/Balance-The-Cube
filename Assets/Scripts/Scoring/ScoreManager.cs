@@ -9,17 +9,29 @@ public class ScoreManager : MonoBehaviour
 
     [Header("UI References")]
     [SerializeField] private TextMeshProUGUI scoreText;
-    [SerializeField] private Transform floatingTextSpawnPoint; // Position underneath or near the main score text (defaults to scoreText if unassigned)
+    [SerializeField] private Transform floatingTextSpawnPoint;
 
     [Header("Animation Settings")]
-    [SerializeField] private float tickDuration = 0.30f;  // How fast the score ticks up/down
+    [SerializeField] private float tickDuration = 0.30f;
 
-    private int currentScore = 0;
+    [Header("Dynamic Shake Settings")]
+    [SerializeField] private TMPTextShake scoreTextShake; // Reference to the shake script on your score text
+    [SerializeField] private float maxShakeStrength = 8f;
+    [SerializeField] private float maxShakeSpeed = 45f;
+    [SerializeField] private float shakeDecayRate = 10f; // How fast the shake calms down when scoring stops
+    [SerializeField] private float shakeScaleMultiplier = 0.01f; // How much each point of score increases the shake intensity
+
+    [HideInInspector]
+    public int currentScore = 0;
     private int displayedScore = 0;
     
-    // Queue and debounce controls to prevent overlapping chaos during fast increments
+    // Queue and debounce controls
     private Queue<int> scoreQueue = new Queue<int>();
     private bool isProcessingQueue = false;
+
+    // Runtime shake calculation values
+    private float targetShakeIntensity = 0f;
+    private float currentShakeIntensity = 0f;
 
     private void Awake()
     {
@@ -34,25 +46,63 @@ public class ScoreManager : MonoBehaviour
 
         displayedScore = currentScore;
         UpdateScoreText();
+
+        // Auto-grab shake component if not assigned
+        if (scoreTextShake == null && scoreText != null)
+        {
+            scoreTextShake = scoreText.GetComponent<TMPTextShake>();
+        }
     }
 
-    /// <summary>
-    /// Increment the score by a specific amount.
-    /// </summary>
+    private void Update()
+    {
+        // Smoothly interpolate shake intensity up or down every frame
+        float decay = isProcessingQueue ? 20f : shakeDecayRate;
+        currentShakeIntensity = Mathf.Lerp(currentShakeIntensity, targetShakeIntensity, Time.deltaTime * decay);
+
+        // Feed strength and speed into the TMPTextShake component based on activity level
+        if (scoreTextShake != null)
+        {
+            if (currentShakeIntensity <= 0.01f)
+            {
+                scoreTextShake.SetShakeConfig(0f, 0f);
+            }
+            else
+            {
+                float strength = currentShakeIntensity * maxShakeStrength;
+                float speed = Mathf.Lerp(15f, maxShakeSpeed, currentShakeIntensity);
+                scoreTextShake.SetShakeConfig(strength, speed);
+            }
+        }
+
+        // If queue is empty, fade target intensity to 0
+        if (!isProcessingQueue)
+        {
+            targetShakeIntensity = 0f;
+        }
+    }
+
     public void AddScore(int amount)
     {
         if (amount <= 0) return;
         scoreQueue.Enqueue(amount);
+        
+        // Scale shake intensity up dynamically based on the magnitude of the score increase
+        float shakeAdd = Mathf.Abs(amount) * shakeScaleMultiplier;
+        targetShakeIntensity = Mathf.Clamp01(targetShakeIntensity + shakeAdd);
+        
         CheckAndProcessQueue();
     }
 
-    /// <summary>
-    /// Decrement the score by a specific amount.
-    /// </summary>
     public void SubtractScore(int amount)
     {
         if (amount <= 0) return;
         scoreQueue.Enqueue(-amount);
+        
+        // Scale shake intensity up dynamically based on the magnitude of the score decrease
+        float shakeAdd = Mathf.Abs(amount) * shakeScaleMultiplier;
+        targetShakeIntensity = Mathf.Clamp01(targetShakeIntensity + shakeAdd);
+        
         CheckAndProcessQueue();
     }
 
@@ -74,10 +124,8 @@ public class ScoreManager : MonoBehaviour
             int startScore = currentScore;
             currentScore += delta;
 
-            // Trigger floating text via FloatingTextSpawner instance
             SpawnFloatingText(delta);
 
-            // Smoothly tick the main score text from current to new value
             float elapsedTime = 0f;
             while (elapsedTime < tickDuration)
             {
@@ -91,7 +139,6 @@ public class ScoreManager : MonoBehaviour
             displayedScore = currentScore;
             UpdateScoreText();
 
-            // Small buffer / debounce between queued changes so rapid inputs play sequentially clean
             yield return new WaitForSeconds(0.05f);
         }
 
@@ -102,13 +149,8 @@ public class ScoreManager : MonoBehaviour
     {
         if (FloatingTextSpawner.ScoreInstance == null) return;
 
-        // Determine spawn position transform
         Transform spawnTransform = floatingTextSpawnPoint != null ? floatingTextSpawnPoint : (scoreText != null ? scoreText.transform : transform);
-        
-        // Format text string (e.g., "+50" or "-10")
         string textString = (delta > 0 ? "+" : "") + delta.ToString();
-
-        // Pass to FloatingTextSpawner instance (relying on its built-in queue, positioning, and DOTween handling)
         FloatingTextSpawner.ScoreInstance.SpawnText(spawnTransform, textString, spawnTransform.position);
     }
 
