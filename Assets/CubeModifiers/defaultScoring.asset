@@ -28,7 +28,7 @@ MonoBehaviour:
   pointsPerHeightUnit: 0
   pointsPerStillnessSecond: 5
   pointsPerAirSecond: 0
-  pointsPerImpact: 200
+  pointsPerImpact: 0
   canStack: 1
   disableRenderMask: 0
   bonkSoundOverride: {fileID: 0}

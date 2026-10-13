@@ -156,6 +156,7 @@ public class ObjectImpactBroadcaster : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
+        RoundManager.Instance.StartTimer();
         float impactForce = collision.impulse.magnitude / Time.fixedDeltaTime;
         if (impactForce > minImpactForce)
         {

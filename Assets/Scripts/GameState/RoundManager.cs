@@ -3,6 +3,9 @@ using System.Collections.Generic;
 
 public class RoundManager : MonoBehaviour
 {
+
+    public static RoundManager Instance { get; private set; }
+
     [Header("Round Configuration")]
     [SerializeField] private List<RoundSO> rounds = new List<RoundSO>();
     [SerializeField] private int currentRoundIndex = 0;
@@ -11,12 +14,29 @@ public class RoundManager : MonoBehaviour
     [SerializeField] private TimerUI timerUI;
     [SerializeField] private ScoreUI scoreUI;
 
+    [Header("Audio Settings")]
+    [SerializeField] private AudioCueSO timerTickAudioCue;
+
     private RoundSO currentRound;
     private float remainingTime;
     private bool isRoundActive = false;
     private int lastWholeSecond = -1;
+    private int currentWholeSecond = -1;
+
+    bool timerStarted = false;
 
     public event System.Action OnRoundCompleted;
+
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+    }
 
     private void Start()
     {
@@ -43,6 +63,24 @@ public class RoundManager : MonoBehaviour
         currentRound = rounds[currentRoundIndex];
         isRoundActive = true;
 
+        if (currentRound.roundDuration > 0)
+        {
+            timerUI?.SetVisible(true);
+            timerUI?.UpdateTimerDisplay(currentRound.roundDuration);
+        }
+        // Initialize Score Threshold UI
+        scoreUI?.Initialize(currentRound.pointGoal);
+
+        Debug.Log($"Round {currentRoundIndex + 1} Started.");
+    }
+
+    public void StartTimer()
+    {
+        if (timerStarted)
+        {
+            return;
+        }
+        timerStarted = true;
         // Initialize Timer
         if (currentRound.roundDuration > 0)
         {
@@ -55,11 +93,6 @@ public class RoundManager : MonoBehaviour
         {
             timerUI?.SetVisible(false);
         }
-
-        // Initialize Score Threshold UI
-        scoreUI?.Initialize(currentRound.pointGoal);
-
-        Debug.Log($"Round {currentRoundIndex + 1} Started.");
     }
 
     private void Update()
@@ -67,21 +100,27 @@ public class RoundManager : MonoBehaviour
         if (!isRoundActive || currentRound == null) return;
 
         // 1. Maintain and Update Timer
-        if (currentRound.roundDuration > 0)
+        if (currentRound.roundDuration > 0 && timerStarted && remainingTime > 0)
         {
-            if (remainingTime > 0)
-            {
-                remainingTime -= Time.deltaTime;
-                timerUI?.UpdateTimerDisplay(Mathf.Max(0f, remainingTime));
+            remainingTime -= Time.deltaTime;
+            timerUI?.UpdateTimerDisplay(Mathf.Max(0f, remainingTime));
 
-                int currentWholeSecond = Mathf.CeilToInt(remainingTime);
-                if (currentWholeSecond != lastWholeSecond)
+            if (currentWholeSecond != lastWholeSecond)
+            {
+                lastWholeSecond = currentWholeSecond;
+                if (timerTickAudioCue != null && AudioManager.Instance != null)
                 {
-                    lastWholeSecond = currentWholeSecond;
-                    timerUI?.PunchTimer();
+                    AudioManager.Instance.PlaySFX(timerTickAudioCue);
                 }
-            }
+                timerUI?.PunchTimer();
+            }  
+        } else if(timerStarted)
+        {
+            timerUI?.UpdateTimerDisplay(0f);
         }
+
+        currentWholeSecond = Mathf.CeilToInt(remainingTime);
+
 
         // 2. Check Score Threshold via Singleton ScoreManager
         int currentScore = 0;
@@ -129,10 +168,15 @@ public class RoundManager : MonoBehaviour
     private void CompleteRound()
     {
         isRoundActive = false;
+        timerStarted = false;
+        currentWholeSecond = -1;
         Debug.Log($"Round {currentRoundIndex + 1} Completed!");
         OnRoundCompleted?.Invoke();
+    }
 
-        // Advance to next round if available
+    private void startNextRound()
+    {
+         // Advance to next round if available
         if (currentRoundIndex + 1 < rounds.Count)
         {
             StartRound(currentRoundIndex + 1);

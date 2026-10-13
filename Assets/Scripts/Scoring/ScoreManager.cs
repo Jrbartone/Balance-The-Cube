@@ -13,21 +13,31 @@ public class ScoreManager : MonoBehaviour
 
     [Header("Animation Settings")]
     [SerializeField] private float tickDuration = 0.30f;
+    [Tooltip("Score changes at or below this amount will tick point-by-point and play the sound the exact amount of times.")]
+    [SerializeField] private int lowNumberThreshold = 10;
+
+    [Header("Audio Settings")]
+    [SerializeField] private AudioCueSO tickerAudioCue;
+    [Tooltip("Fastest time between repeated sound triggers when intensity is max (1.0). Also used as the step interval for low numbers.")]
+    [SerializeField] private float minTickSoundInterval = 0.05f;
+    [Tooltip("Slowest time between repeated sound triggers when intensity is low.")]
+    [SerializeField] private float maxTickSoundInterval = 0.15f;
 
     [Header("Dynamic Shake Settings")]
-    [SerializeField] private TMPTextShake scoreTextShake; // Reference to the shake script on your score text
+    [SerializeField] private TMPTextShake scoreTextShake;
     [SerializeField] private float maxShakeStrength = 8f;
     [SerializeField] private float maxShakeSpeed = 45f;
-    [SerializeField] private float shakeDecayRate = 10f; // How fast the shake calms down when scoring stops
-    [SerializeField] private float shakeScaleMultiplier = 0.01f; // How much each point of score increases the shake intensity
+    [SerializeField] private float shakeDecayRate = 10f;
+    [SerializeField] private float shakeScaleMultiplier = 0.01f;
 
     [HideInInspector]
     public int currentScore = 0;
     private int displayedScore = 0;
     
-    // Queue and debounce controls
+    // Queue and state controls
     private Queue<int> scoreQueue = new Queue<int>();
     private bool isProcessingQueue = false;
+    private int currentDeltaBeingProcessed = 0;
 
     // Runtime shake calculation values
     private float targetShakeIntensity = 0f;
@@ -47,11 +57,15 @@ public class ScoreManager : MonoBehaviour
         displayedScore = currentScore;
         UpdateScoreText();
 
-        // Auto-grab shake component if not assigned
         if (scoreTextShake == null && scoreText != null)
         {
             scoreTextShake = scoreText.GetComponent<TMPTextShake>();
         }
+    }
+
+    private void Start()
+    {
+        StartCoroutine(AudioTickerObserverRoutine());
     }
 
     private void Update()
@@ -87,7 +101,6 @@ public class ScoreManager : MonoBehaviour
         if (amount <= 0) return;
         scoreQueue.Enqueue(amount);
         
-        // Scale shake intensity up dynamically based on the magnitude of the score increase
         float shakeAdd = Mathf.Abs(amount) * shakeScaleMultiplier;
         targetShakeIntensity = Mathf.Clamp01(targetShakeIntensity + shakeAdd);
         
@@ -99,7 +112,6 @@ public class ScoreManager : MonoBehaviour
         if (amount <= 0) return;
         scoreQueue.Enqueue(-amount);
         
-        // Scale shake intensity up dynamically based on the magnitude of the score decrease
         float shakeAdd = Mathf.Abs(amount) * shakeScaleMultiplier;
         targetShakeIntensity = Mathf.Clamp01(targetShakeIntensity + shakeAdd);
         
@@ -110,39 +122,101 @@ public class ScoreManager : MonoBehaviour
     {
         if (!isProcessingQueue)
         {
+            isProcessingQueue = true;
             StartCoroutine(ProcessScoreQueue());
         }
     }
 
     private IEnumerator ProcessScoreQueue()
     {
-        isProcessingQueue = true;
-
         while (scoreQueue.Count > 0)
         {
-            int delta = scoreQueue.Dequeue();
+            currentDeltaBeingProcessed = scoreQueue.Dequeue();
             int startScore = currentScore;
-            currentScore += delta;
+            currentScore += currentDeltaBeingProcessed;
 
-            SpawnFloatingText(delta);
+            SpawnFloatingText(currentDeltaBeingProcessed);
 
-            float elapsedTime = 0f;
-            while (elapsedTime < tickDuration)
+            int absDelta = Mathf.Abs(currentDeltaBeingProcessed);
+
+            if (absDelta <= lowNumberThreshold)
             {
-                elapsedTime += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsedTime / tickDuration);
-                displayedScore = Mathf.RoundToInt(Mathf.Lerp(startScore, currentScore, t));
-                UpdateScoreText();
-                yield return null;
+                // For low numbers, update the score point-by-point matching the audio ticks
+                int step = (currentDeltaBeingProcessed > 0) ? 1 : -1;
+
+                for (int i = 0; i < absDelta; i++)
+                {
+                    displayedScore += step;
+                    UpdateScoreText();
+                    yield return new WaitForSeconds(minTickSoundInterval);
+                }
+            }
+            else
+            {
+                // For larger numbers, use smooth interpolation over tickDuration
+                float elapsedTime = 0f;
+                while (elapsedTime < tickDuration)
+                {
+                    elapsedTime += Time.deltaTime;
+                    float t = Mathf.Clamp01(elapsedTime / tickDuration);
+                    displayedScore = Mathf.RoundToInt(Mathf.Lerp(startScore, currentScore, t));
+                    UpdateScoreText();
+                    yield return null;
+                }
             }
 
             displayedScore = currentScore;
             UpdateScoreText();
 
+            // Clear current delta before the short pause between queue items
+            currentDeltaBeingProcessed = 0;
             yield return new WaitForSeconds(0.05f);
         }
 
         isProcessingQueue = false;
+        currentDeltaBeingProcessed = 0;
+    }
+
+    private IEnumerator AudioTickerObserverRoutine()
+    {
+        while (true)
+        {
+            // Wait silently until queue processing begins
+            yield return new WaitUntil(() => isProcessingQueue);
+
+            while (isProcessingQueue)
+            {
+                int delta = currentDeltaBeingProcessed;
+                int absDelta = Mathf.Abs(delta);
+
+                if (absDelta > 0 && absDelta <= lowNumberThreshold)
+                {
+                    // Integrated low-number rule: play the sound exactly 'absDelta' times at max speed
+                    for (int i = 0; i < absDelta; i++)
+                    {
+                        if (tickerAudioCue != null && AudioManager.Instance != null)
+                        {
+                            AudioManager.Instance.PlaySFX(tickerAudioCue);
+                        }
+                        yield return new WaitForSeconds(Mathf.Lerp(maxTickSoundInterval, minTickSoundInterval, currentShakeIntensity));
+                    }
+
+                    // Wait until this specific low-number item finishes processing before looping again
+                    yield return new WaitUntil(() => currentDeltaBeingProcessed != delta);
+                }
+                else
+                {
+                    // Standard continuous audio ticker routine for larger numbers
+                    if (tickerAudioCue != null && AudioManager.Instance != null)
+                    {
+                        AudioManager.Instance.PlaySFX(tickerAudioCue);
+                    }
+
+                    float currentInterval = Mathf.Lerp(maxTickSoundInterval, minTickSoundInterval, currentShakeIntensity);
+                    yield return new WaitForSeconds(currentInterval);
+                }
+            }
+        }
     }
 
     private void SpawnFloatingText(int delta)

@@ -8,6 +8,8 @@ public class ObjectImpactScoreFeedback : MonoBehaviour
     private TrackedTextHandle textHandle;
     private ObjectModifierController modifierController;
 
+    private float heightScale = 10f;
+
     private void Awake()
     {
         broadcaster = GetComponent<ObjectImpactBroadcaster>();
@@ -103,13 +105,13 @@ public class ObjectImpactScoreFeedback : MonoBehaviour
 
     private void OnApex()
     {
-        if (modifierController == null || modifierController.TotalPointsPerHeightUnit == 0)
+        if (modifierController == null || modifierController.TotalPointsPerHeightUnit == 0 || transform.position.y <= 0)
         {
             return;
         }
         
-        FloatingTextSpawner.CubeInstance.SpawnText(gameObject, modifierController.TotalPointsPerHeightUnit.ToString(), transform.position);
-        ScoreManager.Instance.AddScore(modifierController.TotalPointsPerHeightUnit);
+        FloatingTextSpawner.CubeInstance.SpawnText(gameObject, ((int)(modifierController.TotalPointsPerHeightUnit * heightScale * Mathf.Max(0f, transform.position.y))).ToString(), transform.position);
+        ScoreManager.Instance.AddScore((int)(modifierController.TotalPointsPerHeightUnit * Mathf.Max(0f, transform.position.y)));
     }
 
     private void ReleaseTextHandle()
