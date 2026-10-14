@@ -6,6 +6,13 @@ public class FollowGameObject : MonoBehaviour
     [Tooltip("The transform to follow as a virtual parent.")]
     public Transform targetParent;
 
+    [Header("Follow Settings")]
+    [Tooltip("If true, follows the target parent's position.")]
+    public bool followPosition = true;
+
+    [Tooltip("If true, follows the target parent's rotation.")]
+    public bool followRotation = true;
+
     [Tooltip("If true, retains current relative offset when assigned. If false, snaps to parent's origin.")]
     public bool maintainOffset = true;
 
@@ -42,13 +49,13 @@ public class FollowGameObject : MonoBehaviour
 
         if (maintainOffset)
         {
-            // Calculate initial local offset relative to target parent's space
+            // Calculate initial local offsets relative to target parent's space
             localPositionOffset = targetParent.InverseTransformPoint(transform.position);
             localRotationOffset = Quaternion.Inverse(targetParent.rotation) * transform.rotation;
         }
         else
         {
-            // Snap to exact parent location
+            // Snap to exact parent location/rotation
             localPositionOffset = Vector3.zero;
             localRotationOffset = Quaternion.identity;
         }
@@ -82,8 +89,16 @@ public class FollowGameObject : MonoBehaviour
     {
         if (targetParent == null) return;
 
-        // Apply relative offset transformed by parent's current position and orientation
-        transform.position = targetParent.TransformPoint(localPositionOffset);
-        transform.rotation = targetParent.rotation * localRotationOffset;
+        // Apply position tracking independently if enabled
+        if (followPosition)
+        {
+            transform.position = targetParent.TransformPoint(localPositionOffset);
+        }
+
+        // Apply rotation tracking independently if enabled
+        if (followRotation)
+        {
+            transform.rotation = targetParent.rotation * localRotationOffset;
+        }
     }
 }

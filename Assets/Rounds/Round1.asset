@@ -13,4 +13,4 @@ MonoBehaviour:
   m_Name: Round1
   m_EditorClassIdentifier: Assembly-CSharp::RoundSO
   roundDuration: 30
-  pointGoal: 1000
+  pointGoal: 1

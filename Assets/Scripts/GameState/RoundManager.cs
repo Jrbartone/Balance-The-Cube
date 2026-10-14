@@ -1,9 +1,9 @@
 using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.Playables;
 
 public class RoundManager : MonoBehaviour
 {
-
     public static RoundManager Instance { get; private set; }
 
     [Header("Round Configuration")]
@@ -17,13 +17,14 @@ public class RoundManager : MonoBehaviour
     [Header("Audio Settings")]
     [SerializeField] private AudioCueSO timerTickAudioCue;
 
+    [Header("Round Cutscenes")]
+    [SerializeField] private PlayableDirector startRoundCutscene;
+    [SerializeField] private PlayableDirector endRoundCutscene;
+
     private RoundSO currentRound;
     private float remainingTime;
     private bool isRoundActive = false;
-    private int lastWholeSecond = -1;
-    private int currentWholeSecond = -1;
-
-    bool timerStarted = false;
+    private bool timerStarted = false;
 
     public event System.Action OnRoundCompleted;
 
@@ -49,6 +50,11 @@ public class RoundManager : MonoBehaviour
     public void OnRoundStart()
     {
         StartRound(currentRoundIndex);
+        
+        if (startRoundCutscene != null && CutsceneManager.Instance != null)
+        {
+            CutsceneManager.Instance.PlayCutscene(startRoundCutscene, () => {});
+        }
     }
 
     public void StartRound(int index)
@@ -62,12 +68,19 @@ public class RoundManager : MonoBehaviour
         currentRoundIndex = index;
         currentRound = rounds[currentRoundIndex];
         isRoundActive = true;
+        timerStarted = false; // Reset timer flag until explicitly started
 
         if (currentRound.roundDuration > 0)
         {
+            remainingTime = currentRound.roundDuration;
             timerUI?.SetVisible(true);
-            timerUI?.UpdateTimerDisplay(currentRound.roundDuration);
+            timerUI?.UpdateTimerDisplay(remainingTime);
         }
+        else
+        {
+            timerUI?.SetVisible(false);
+        }
+
         // Initialize Score Threshold UI
         scoreUI?.Initialize(currentRound.pointGoal);
 
@@ -76,22 +89,15 @@ public class RoundManager : MonoBehaviour
 
     public void StartTimer()
     {
-        if (timerStarted)
-        {
-            return;
-        }
+        if (timerStarted) return;
+        
         timerStarted = true;
-        // Initialize Timer
-        if (currentRound.roundDuration > 0)
+
+        if (currentRound != null && currentRound.roundDuration > 0)
         {
             remainingTime = currentRound.roundDuration;
-            lastWholeSecond = Mathf.CeilToInt(remainingTime);
             timerUI?.SetVisible(true);
             timerUI?.UpdateTimerDisplay(remainingTime);
-        }
-        else
-        {
-            timerUI?.SetVisible(false);
         }
     }
 
@@ -99,28 +105,36 @@ public class RoundManager : MonoBehaviour
     {
         if (!isRoundActive || currentRound == null) return;
 
-        // 1. Maintain and Update Timer
-        if (currentRound.roundDuration > 0 && timerStarted && remainingTime > 0)
+        // 1. Maintain and Update Timer (only if timer has explicitly started)
+        if (currentRound.roundDuration > 0 && timerStarted)
         {
-            remainingTime -= Time.deltaTime;
-            timerUI?.UpdateTimerDisplay(Mathf.Max(0f, remainingTime));
-
-            if (currentWholeSecond != lastWholeSecond)
+            if (remainingTime > 0)
             {
-                lastWholeSecond = currentWholeSecond;
-                if (timerTickAudioCue != null && AudioManager.Instance != null)
+                float previousTime = remainingTime;
+                remainingTime -= Time.deltaTime;
+                remainingTime = Mathf.Max(0f, remainingTime);
+
+                // Check for whole second integer boundaries crossed this frame
+                int previousSecond = Mathf.FloorToInt(previousTime);
+                int currentSecond = Mathf.FloorToInt(remainingTime);
+
+                // Play tick and punch timer when crossing a second boundary (including the final tick to 0)
+                if (currentSecond != previousSecond && previousTime > 0f)
                 {
-                    AudioManager.Instance.PlaySFX(timerTickAudioCue);
+                    if (timerTickAudioCue != null && AudioManager.Instance != null)
+                    {
+                        AudioManager.Instance.PlaySFX(timerTickAudioCue);
+                    }
+                    timerUI?.PunchTimer();
                 }
-                timerUI?.PunchTimer();
-            }  
-        } else if(timerStarted)
-        {
-            timerUI?.UpdateTimerDisplay(0f);
+
+                timerUI?.UpdateTimerDisplay(remainingTime);
+            }
+            else
+            {
+                timerUI?.UpdateTimerDisplay(0f);
+            }
         }
-
-        currentWholeSecond = Mathf.CeilToInt(remainingTime);
-
 
         // 2. Check Score Threshold via Singleton ScoreManager
         int currentScore = 0;
@@ -133,13 +147,15 @@ public class RoundManager : MonoBehaviour
             }
         }
 
-        // 3. Evaluate Round Completion Conditions
+        // 3. Evaluate Round Completion Conditions (Only evaluate if timer has started when a duration is required)
+        if (!timerStarted && currentRound.roundDuration > 0) return;
+
         EvaluateRoundCompletion(currentScore);
     }
 
     private void EvaluateRoundCompletion(int currentScore)
     {
-        bool timeExpired = currentRound.roundDuration > 0 && remainingTime <= 0;
+        bool timeExpired = currentRound.roundDuration > 0 && remainingTime <= 0f;
         bool scoreReached = currentRound.pointGoal > 0 && currentScore >= currentRound.pointGoal;
 
         bool roundComplete = false;
@@ -147,36 +163,42 @@ public class RoundManager : MonoBehaviour
         // Logic depending on whether the round uses time, points, or both
         if (currentRound.roundDuration > 0 && currentRound.pointGoal > 0)
         {
-            // If both are set, require surviving the time AND hitting the score goal
             if (timeExpired && scoreReached) roundComplete = true;
         }
-        else if (currentRound.roundDuration > 0)
+        else if (currentRound.roundDuration > 0 && currentRound.pointGoal == 0)
         {
             if (timeExpired) roundComplete = true;
         }
-        else if (currentRound.pointGoal > 0)
+        else if (currentRound.pointGoal > 0 && currentRound.roundDuration == 0)
         {
             if (scoreReached) roundComplete = true;
         }
 
-        if (roundComplete)
+        if (roundComplete && isRoundActive)
         {
-            CompleteRound();
+            isRoundActive = false;
+            
+            if (endRoundCutscene != null && CutsceneManager.Instance != null)
+            {
+                CutsceneManager.Instance.PlayCutscene(endRoundCutscene, () => CompleteRound());
+            }
+            else
+            {
+                CompleteRound();
+            }
         }
     }
 
     private void CompleteRound()
     {
-        isRoundActive = false;
         timerStarted = false;
-        currentWholeSecond = -1;
         Debug.Log($"Round {currentRoundIndex + 1} Completed!");
         OnRoundCompleted?.Invoke();
     }
 
-    private void startNextRound()
+    public void StartNextRound()
     {
-         // Advance to next round if available
+        // Advance to next round if available
         if (currentRoundIndex + 1 < rounds.Count)
         {
             StartRound(currentRoundIndex + 1);

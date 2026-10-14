@@ -75,6 +75,11 @@ public class ObjectImpactBroadcaster : MonoBehaviour
 
     private void Update()
     {
+        if(rb.isKinematic)
+        {
+            return;
+        }
+
         float velocityMag = rb != null ? rb.linearVelocity.magnitude : 0f;
         Vector3 horizontalVelocity = rb != null ? new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z) : Vector3.zero;
         Vector3 verticalVelocity = rb != null ? new Vector3(0f, rb.linearVelocity.y, 0f) : Vector3.zero;
